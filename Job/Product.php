@@ -1298,11 +1298,19 @@ class Product extends Import
                     );
 
                     if ($rewriteId) {
-                        $connection->update(
-                            $connection->getTableName('url_rewrite'),
-                            ['request_path' => $requestPath],
-                            ['url_rewrite_id = ?' => $rewriteId]
-                        );
+                        try {
+                            $connection->update(
+                                $connection->getTableName('url_rewrite'),
+                                ['request_path' => $requestPath],
+                                ['url_rewrite_id = ?' => $rewriteId]
+                            );
+                        } catch (\Exception $exception) {
+                            if($exception->getCode() == 23000) {
+                                $connection->delete(
+                                    $connection->getTableName('url_rewrite'),
+                                    ['url_rewrite_id = ?' => $rewriteId]);
+                            }
+                        }
                     } else {
                         /** @var array $data */
                         $data = [
