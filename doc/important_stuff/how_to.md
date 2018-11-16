@@ -55,3 +55,11 @@ Note that if you judge your feature can be used by others, and if you respect th
 * Be sure to not break others features
 * Submit a clean code
 * Always update the documentation if you submit a new feature
+
+### Q : How to set product name as URL
+**A** : Add pim attribute mapping that points to the field "url_key"
+* Go to Store -> Configuration -> Catalog -> PIMGento2
+* Add attribute mapping
+* Set Pim to "akeneo_product_name_field"
+* Set Magento to "url_key"
+* Save
