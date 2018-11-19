@@ -1389,16 +1389,29 @@ class Product extends Import
                             /** @var string|null $rewriteId */
                             $rewriteId = $connection->fetchOne(
                                 $connection->select()
-                                    ->from($connection->getTableName('url_rewrite'), ['url_rewrite_id'])
+                                    ->from($connection->getTableName('url_rewrite'), ['url_rewrite_id','request_path'])
                                     ->where('entity_type = ?', ProductUrlRewriteGenerator::ENTITY_TYPE)
                                     ->where('target_path = ?', $targetPath)
                                     ->where('store_id = ?', $product->getStoreId())
                             );
 
                             if ($rewriteId) {
+
+                                /** @var array|null $result */
+                                $result = $connection->fetchRow(
+                                    $connection->select()
+                                        ->from($connection->getTableName('url_rewrite'), ['url_rewrite_id','request_path'])
+                                        ->where('entity_type = ?', ProductUrlRewriteGenerator::ENTITY_TYPE)
+                                        ->where('target_path = ?', $targetPath)
+                                        ->where('store_id = ?', $product->getStoreId())
+                                );
+
                                 $connection->update(
                                     $connection->getTableName('url_rewrite'),
-                                    ['request_path' => $requestPath],
+                                    [
+                                        'target_path' => $requestPath,
+                                        'redirect_type' => 302
+                                    ],
                                     ['url_rewrite_id = ?' => $rewriteId]
                                 );
                             } else {
