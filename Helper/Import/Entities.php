@@ -157,7 +157,7 @@ class Entities extends AbstractHelper
      * @return $this
      * @throws \Zend_Db_Exception
      */
-    private function createTmpTable($fields, $tableSuffix)
+    public function createTmpTable($fields, $tableSuffix)
     {
         /* Delete table if exists */
         $this->dropTable($tableSuffix);
@@ -195,6 +195,32 @@ class Entities extends AbstractHelper
             '_entity_id',
             ['type' => \Magento\Framework\DB\Adapter\AdapterInterface::INDEX_TYPE_UNIQUE]
         );
+
+
+        if($tableSuffix == 'product'){
+            $table->addColumn(
+                '_product_id',
+                \Magento\Framework\DB\Ddl\Table::TYPE_INTEGER,
+                11,
+                ['identity' => true,'nullable' => false,'primary' => true,'unsigned' => false],
+                'Product Id'
+            );
+        } elseif($tableSuffix == 'attribute'){
+            $table->addColumn(
+                '_product_id',
+                \Magento\Framework\DB\Ddl\Table::TYPE_INTEGER,
+                11,
+                ['identity' => false,'nullable' => false,'primary' => false,'unsigned' => true],
+                'Entity Id'
+            );
+
+            $table->addForeignKey(
+                'FOREIGN_PRODUCT_ID',
+                '_product_id',
+                "tmp_pimgento_entities_product",
+                '_product_id'
+            );
+        }
 
         $table->addColumn(
             '_is_new',
@@ -257,6 +283,50 @@ class Entities extends AbstractHelper
     }
 
     /**
+     * Get columns from the api result
+     *
+     * @param array $result
+     *
+     * @return array
+     */
+    protected function getAttributeColumnsFromResult(array $result)
+    {
+        /** @var array $columns */
+        $columns = [];
+        /**
+         * @var string $key
+         * @var mixed $value
+         */
+        foreach ($result as $key => $value) {
+            if (in_array($key, static::EXCLUDED_COLUMNS)) {
+                continue;
+            }
+            $columns[$key] = $value;
+
+            if (is_array($value)) {
+                if (empty($value)) {
+                    $columns[$key] = null;
+                    continue;
+                }
+                unset($columns[$key]);
+                foreach ($value as $local => $v) {
+                    if (!is_numeric($local)) {
+                        $data = $v;
+                        if (is_array($data)) {
+                            $data = json_encode($data);
+                        }
+                        $columns[$key] = $data;
+                    } else {
+                        $columns[$key] = json_encode($value);
+                    }
+                }
+            }
+        }
+
+        return $columns;
+    }
+
+    /**
      * Drop temporary table
      *
      * @param string $tableSuffix
@@ -292,8 +362,7 @@ class Entities extends AbstractHelper
      * @param array $result
      * @param null|string $tableSuffix
      * @param int $queryNumber
-     *
-     * @return void
+     * @return string|void
      */
     public function insertDataFromApi(array $result, $tableSuffix = null, $queryNumber = 1000)
     {
@@ -302,6 +371,7 @@ class Entities extends AbstractHelper
 
         /** @var string[] $result */
         $result = $this->getColumnsFromResult($result);
+
         /**
          * @var string $key
          * @var $string $value
@@ -313,6 +383,25 @@ class Entities extends AbstractHelper
         }
 
         $this->connection->insert($tableName, $result);
+
+        if($tableSuffix == 'product'){
+            $getLast = $this->connection->select()->from($tableName,"_product_id")->order("_product_id DESC");
+            $result = $this->connection->query($getLast)->fetch();
+            return $result['_product_id'];
+        }
+    }
+
+    /**
+     * Insert data in the temporary table
+     *
+     * @param array $result
+     * @param null $tableSuffix
+     */
+    public function insertBulkData(array $result, $tableSuffix = null)
+    {
+        /** @var string $tableName */
+        $tableName = $this->getTableName($tableSuffix);
+        $this->connection->insertMultiple($tableName, $result);
     }
 
     /**
@@ -339,7 +428,7 @@ class Entities extends AbstractHelper
         /** @var string $entityTable */
         $entityTable = $this->getTable($entityTable);
 
-        if ($entityKey == 'entity_id') {
+        if ($entityKey == '_entity_id') {
             $entityKey = $this->getColumnIdentifier($entityTable);
         }
 
@@ -388,6 +477,7 @@ class Entities extends AbstractHelper
         $count = $connection->fetchOne(
             $connection->select()->from($tableName, [new Expr('COUNT(*)')])->where('_is_new = ?', 1)
         );
+
         if ($count) {
             /** @var string $maxCode */
             $maxCode = $connection->fetchOne(
@@ -427,7 +517,6 @@ class Entities extends AbstractHelper
         $connection = $this->getConnection();
         /** @var string $tableName */
         $tableName  = $this->getTableName($import);
-
         /**
          * @var string $code
          * @var string $value

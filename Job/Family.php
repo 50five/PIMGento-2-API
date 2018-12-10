@@ -189,14 +189,18 @@ class Family extends Import
         /** @var Select $families */
         $families = $connection->select()->from($tmpTable, $values);
 
-        $connection->query(
-            $connection->insertFromSelect(
-                $families,
-                $this->entitiesHelper->getTable('eav_attribute_set'),
-                array_keys($values),
-                1
-            )
-        );
+        try{
+            $connection->query(
+                $connection->insertFromSelect(
+                    $families,
+                    $this->entitiesHelper->getTable('eav_attribute_set'),
+                    array_keys($values),
+                    1
+                )
+            );
+        } catch (\Exception $e) {
+            var_dump($e->getMessage());
+        }
     }
 
     /**

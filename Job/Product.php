@@ -30,6 +30,7 @@ use Pimgento\Api\Helper\Serializer as JsonSerializer;
 use Pimgento\Api\Helper\Import\Product as ProductImportHelper;
 use Zend_Db_Expr as Expr;
 use Zend_Db_Statement_Pdo;
+use Magento\Eav\Api\Data\AttributeInterface;
 
 /**
  * Class Product
@@ -61,7 +62,13 @@ class Product extends Import
      *
      * @var string $code
      */
-    protected $code = 'product';
+    protected $productCode = 'product';
+    /**
+     * This variable contains a string value
+     *
+     * @var string $code
+     */
+    protected $attributeCode = 'attribute';
     /**
      * This variable contains a string value
      *
@@ -181,20 +188,20 @@ class Product extends Import
      */
     public function createTable()
     {
-        /** @var PageInterface $products */
-        $products = $this->akeneoClient->getProductApi()->listPerPage(1);
-        /** @var array $products */
-        $products = $products->getItems();
-        if (empty($products)) {
-            $this->setMessage(__('No results from Akeneo'));
-            $this->stop(true);
+        $baseColumns = ["identifier", "family", "parent", "groups", "categories", "enabled"];
+        $this->entitiesHelper->createTmpTable($baseColumns, $this->productCode);
+        $stores = $this->storeHelper->getAllStores();
 
-            return;
+        $attributeColumns = ["attribute_code","value"];
+        /**
+         * @var string $local
+         * @var string $affected
+         */
+        foreach ($stores as $local => $affected) {
+            array_push($attributeColumns,'value-' . $local);
         }
 
-        /** @var array $product */
-        $product = reset($products);
-        $this->entitiesHelper->createTmpTableFromApi($product, $this->getCode());
+        $this->entitiesHelper->createTmpTable($attributeColumns, $this->attributeCode);
     }
 
     /**
@@ -217,7 +224,40 @@ class Product extends Import
          * @var array $product
          */
         foreach ($products as $index => $product) {
-            $this->entitiesHelper->insertDataFromApi($product, $this->getCode());
+
+            $baseData = [
+                'identifier' => $product['identifier'],
+                'family' => $product['family'],
+                'parent' => $product['parent'],
+                'groups' => $product['groups'],
+                'categories' => $product['categories'],
+                'enabled' => $product['enabled']
+            ];
+            $result = $this->entitiesHelper->insertDataFromApi($baseData, $this->productCode);
+
+            if($result != 0) {
+                $productData = $product;
+                $i = 0;
+                $attributeData = [];
+                foreach($productData["values"] as $code => $value){
+                    if(!array_key_exists($code, $baseData)){
+                        var_dump($value);
+                        exit;
+                        $attributeData[$i] = [
+                            'attribute_code' => $code,
+                            'value' => json_encode($value),
+                            '_product_id' => $result
+                        ];
+                        $i++;
+                    }
+                }
+                $this->entitiesHelper->insertBulkData($attributeData, $this->attributeCode);
+            } else {
+                var_dump($baseData);
+                var_dump($result);
+                exit;
+            }
+
         }
         if ($index) {
             $index++;
@@ -239,44 +279,45 @@ class Product extends Import
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
-        $tmpTable = $this->entitiesHelper->getTableName($this->getCode());
+        $tmpProductTable = $this->entitiesHelper->getTableName($this->productCode);
+        $tmpAttributeTable = $this->entitiesHelper->getTableName($this->attributeCode);
 
-        $connection->addColumn($tmpTable, '_type_id', [
+        $connection->addColumn($tmpProductTable, '_type_id', [
             'type' => 'text',
             'length' => 255,
             'default' => 'simple',
             'COMMENT' => ' ',
             'nullable' => false
         ]);
-        $connection->addColumn($tmpTable, '_options_container', [
+        $connection->addColumn($tmpProductTable, '_options_container', [
             'type' => 'text',
             'length' => 255,
             'default' => 'container2',
             'COMMENT' => ' ',
             'nullable' => false
         ]);
-        $connection->addColumn($tmpTable, '_tax_class_id', [
+        $connection->addColumn($tmpProductTable, '_tax_class_id', [
             'type' => 'integer',
             'length' => 11,
             'default' => 0,
             'COMMENT' => ' ',
             'nullable' => false
         ]); // None
-        $connection->addColumn($tmpTable, '_attribute_set_id', [
+        $connection->addColumn($tmpProductTable, '_attribute_set_id', [
             'type' => 'integer',
             'length' => 11,
             'default' => 4,
             'COMMENT' => ' ',
             'nullable' => false
         ]); // Default
-        $connection->addColumn($tmpTable, '_visibility', [
+        $connection->addColumn($tmpProductTable, '_visibility', [
             'type' => 'integer',
             'length' => 11,
             'default' => Visibility::VISIBILITY_BOTH,
             'COMMENT' => ' ',
             'nullable' => false
         ]);
-        $connection->addColumn($tmpTable, '_status', [
+        $connection->addColumn($tmpProductTable, '_status', [
             'type' => 'integer',
             'length' => 11,
             'default' => 2,
@@ -284,33 +325,33 @@ class Product extends Import
             'nullable' => false
         ]); // Disabled
 
-        if (!$connection->tableColumnExists($tmpTable, 'url_key')) {
-            $connection->addColumn($tmpTable, 'url_key', [
+        if (!$connection->tableColumnExists($tmpProductTable, 'url_key')) {
+            $connection->addColumn($tmpProductTable, 'url_key', [
                 'type' => 'text',
                 'length' => 255,
                 'default' => '',
                 'COMMENT' => ' ',
                 'nullable' => false
             ]);
-            $connection->update($tmpTable, ['url_key' => new Expr('LOWER(`identifier`)')]);
+            $connection->update($tmpProductTable, ['url_key' => new Expr('LOWER(`identifier`)')]);
         }
 
-        if ($connection->tableColumnExists($tmpTable, 'enabled')) {
-            $connection->update($tmpTable, ['_status' => new Expr('IF(`enabled` <> 1, 2, 1)')]);
+        if ($connection->tableColumnExists($tmpProductTable, 'enabled')) {
+            $connection->update($tmpProductTable, ['_status' => new Expr('IF(`enabled` <> 1, 2, 1)')]);
         }
 
         /** @var string|null $groupColumn */
         $groupColumn = null;
-        if ($connection->tableColumnExists($tmpTable, 'parent')) {
+        if ($connection->tableColumnExists($tmpProductTable, 'parent')) {
             $groupColumn = 'parent';
         }
-        if ($connection->tableColumnExists($tmpTable, 'groups') && !$groupColumn) {
+        if ($connection->tableColumnExists($tmpProductTable, 'groups') && !$groupColumn) {
             $groupColumn = 'groups';
         }
 
         if ($groupColumn) {
             $connection->update(
-                $tmpTable,
+                $tmpProductTable,
                 [
                     '_visibility' => new Expr(
                         'IF(`' . $groupColumn . '` <> "", ' . Visibility::VISIBILITY_NOT_VISIBLE . ', ' . Visibility::VISIBILITY_BOTH . ')'
@@ -319,11 +360,11 @@ class Product extends Import
             );
         }
 
-        if ($connection->tableColumnExists($tmpTable, 'type_id')) {
+        if ($connection->tableColumnExists($tmpProductTable, 'type_id')) {
             /** @var string $types */
             $types = $connection->quote($this->allowedTypeId);
             $connection->update(
-                $tmpTable,
+                $tmpProductTable,
                 [
                     '_type_id' => new Expr("IF(`type_id` IN ($types), `type_id`, 'simple')"),
                 ]
@@ -340,6 +381,7 @@ class Product extends Import
         /** @var array $stores */
         $stores = $this->storeHelper->getAllStores();
 
+        $insertProductAttributes = [];
         /** @var array $match */
         foreach ($matches as $match) {
             if (!isset($match['pim_attribute'], $match['magento_attribute'])) {
@@ -351,19 +393,37 @@ class Product extends Import
             /** @var string $magentoAttribute */
             $magentoAttribute = $match['magento_attribute'];
 
-            $this->entitiesHelper->copyColumn($tmpTable, $pimAttribute, $magentoAttribute);
+            $checkProductTable = $connection->tableColumnExists($tmpProductTable,$pimAttribute);
 
-            /**
-             * @var string $local
-             * @var string $affected
-             */
-            foreach ($stores as $local => $affected) {
-                $this->entitiesHelper->copyColumn(
-                    $tmpTable,
-                    $pimAttribute . '-' . $local,
-                    $magentoAttribute . '-' . $local
-                );
+
+            $this->entitiesHelper->copyColumn($tmpProductTable, $pimAttribute, $magentoAttribute);
+
+            if($checkProductTable){
+                /**
+                 * @var string $local
+                 * @var string $affected
+                 */
+                foreach ($stores as $local => $affected) {
+                    $this->entitiesHelper->copyColumn(
+                        $tmpProductTable,
+                        $pimAttribute . '-' . $local,
+                        $magentoAttribute . '-' . $local
+                    );
+                }
+            } else {
+                $checkAttributeTable = $connection->select()->from($tmpAttributeTable)->where("attribute_code = ?" , $pimAttribute);
+                $attributes = $connection->query($checkAttributeTable)->fetchAll();
+                if(!empty($attributes)) {
+                    foreach($attributes as $attribute) {
+                        $newAttribute = $attribute;
+                        $newAttribute['attribute_code'] = $magentoAttribute;
+                        $insertProductAttributes[] = $newAttribute;
+                    }
+                }
             }
+        }
+        if(!empty($insertProductAttributes)) {
+            $connection->insertMultiple($tmpAttributeTable, $insertProductAttributes);
         }
     }
 
@@ -378,7 +438,7 @@ class Product extends Import
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
-        $tmpTable = $this->entitiesHelper->getTableName($this->getCode());
+        $tmpTable = $this->entitiesHelper->getTableName($this->productCode);
 
         /** @var string|null $groupColumn */
         $groupColumn = null;
@@ -406,17 +466,21 @@ class Product extends Import
         /** @var string $variantTable */
         $variantTable = $this->entitiesHelper->getTable('pimgento_product_model');
 
-        $select = $connection->select()
-            ->from(false, [$groupColumn => 'v.parent'])
-            ->joinInner(
-                ['v' => $variantTable],
-                'v.parent IS NOT NULL AND e.' . $groupColumn . ' = v.code',
-                []
-            );
+        try{
+            $select = $connection->select()
+                ->from(false, [$groupColumn => 'v.parent'])
+                ->joinInner(
+                    ['v' => $variantTable],
+                    'v.parent IS NOT NULL AND e.' . $groupColumn . ' = v.code',
+                    []
+                );
 
-        $connection->query(
-            $connection->updateFromSelect($select, ['e' => $tmpTable])
-        );
+            $connection->query(
+                $connection->updateFromSelect($select, ['e' => $tmpTable])
+            );
+        } catch( \Exception $e){
+            var_dump($e->getMessage());
+        }
 
         /** @var array $data */
         $data = [
@@ -517,7 +581,8 @@ class Product extends Import
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
-        $tmpTable = $this->entitiesHelper->getTableName($this->getCode());
+        $tmpTable = $this->entitiesHelper->getTableName($this->productCode);
+
 
         /** @var array $duplicates */
         $duplicates = $connection->fetchCol(
@@ -539,8 +604,8 @@ class Product extends Import
         $this->entitiesHelper->matchEntity(
             'identifier',
             'catalog_product_entity',
-            'entity_id',
-            $this->getCode()
+            '_entity_id',
+            $this->productCode
         );
     }
 
@@ -554,7 +619,7 @@ class Product extends Import
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
-        $tmpTable = $this->entitiesHelper->getTableName($this->getCode());
+        $tmpTable = $this->entitiesHelper->getTableName($this->productCode);
 
         if (!$connection->tableColumnExists($tmpTable,'family')) {
             $this->setStatus(false);
@@ -599,7 +664,7 @@ class Product extends Import
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
-        $tmpTable = $this->entitiesHelper->getTableName($this->getCode());
+        $tmpTable = $this->entitiesHelper->getTableName($this->productCode);
         /** @var string[] $columns */
         $columns = array_keys($connection->describeTable($tmpTable));
         /** @var string[] $except */
@@ -695,7 +760,7 @@ class Product extends Import
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
-        $tmpTable = $this->entitiesHelper->getTableName($this->getCode());
+        $tmpTable = $this->entitiesHelper->getTableName($this->productCode);
 
         if ($connection->isTableExists($this->entitiesHelper->getTable('sequence_product'))) {
             /** @var array $values */
@@ -766,11 +831,11 @@ class Product extends Import
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
-        $tmpTable = $this->entitiesHelper->getTableName($this->getCode());
+        $tmpProductTable = $this->entitiesHelper->getTableName($this->productCode);
         /** @var array $stores */
         $stores = $this->storeHelper->getAllStores();
         /** @var string[] $columns */
-        $columns = array_keys($connection->describeTable($tmpTable));
+        $productColumns = array_keys($connection->describeTable($tmpProductTable));
         /** @var string[] $except */
         $except = [
             '_entity_id',
@@ -789,6 +854,7 @@ class Product extends Import
             'groups',
             'parent',
             'enabled',
+            '_product_id'
         ];
         /** @var array $values */
         $values = [
@@ -799,7 +865,7 @@ class Product extends Import
             ],
         ];
 
-        if ($connection->tableColumnExists($tmpTable, 'enabled')) {
+        if ($connection->tableColumnExists($tmpProductTable, 'enabled')) {
             $values[0]['status'] = '_status';
         }
 
@@ -811,8 +877,9 @@ class Product extends Import
             }
         }
 
+
         /** @var string $column */
-        foreach ($columns as $column) {
+        foreach ($productColumns as $column) {
             if (in_array($column, $except) || preg_match('/-unit/', $column)) {
                 continue;
             }
@@ -853,7 +920,7 @@ class Product extends Import
          */
         foreach ($values as $storeId => $data) {
             $this->entitiesHelper->setValues(
-                $this->getCode(),
+                $this->productCode,
                 'catalog_product_entity',
                 $data,
                 $entityTypeId,
@@ -861,6 +928,117 @@ class Product extends Import
                 AdapterInterface::INSERT_ON_DUPLICATE
             );
         }
+
+        $this->setAttributeValues();
+    }
+
+    /**
+     * Set all product attribute values collected in the
+     */
+    public function setAttributeValues()
+    {
+        $connection = $this->entitiesHelper->getConnection();
+        $entityTypeId = $this->configHelper->getEntityTypeId(ProductModel::ENTITY);
+        /** @var string $tmpTable */
+        $tmpProductTable = $this->entitiesHelper->getTableName($this->productCode);
+        /** @var string $tmpTable */
+        $tmpAttributeTable = $this->entitiesHelper->getTableName($this->attributeCode);
+
+        $stores = $this->storeHelper->getAllStores();
+        $productSelect = $connection->select()
+            ->from(
+                $tmpProductTable,
+                [
+                    '_product_id'
+                ]
+            );
+
+        $products = $connection->query($productSelect)->fetchAll();
+        $values = [];
+        foreach($products as $product){
+            $attributeSelect = $connection->select()
+                ->from(
+                    $tmpAttributeTable
+                )
+                ->join(
+                    $tmpProductTable,
+                    $tmpAttributeTable . '._product_id = ' . $tmpProductTable . '._product_id')
+                ->where($tmpAttributeTable."._product_id = ?", $product['_product_id']);
+            $attributes = $connection->query($attributeSelect)->fetchAll();
+            foreach($attributes as $pimAttribute){
+
+                $pimValues = json_decode($pimAttribute['value']);
+
+                /** @var array|bool $attribute */
+                $attribute = $this->entitiesHelper->getAttribute($pimAttribute['attribute_code'], $entityTypeId);
+
+                if (!$attribute) {
+                    continue;
+                }
+
+                if (!isset($attribute[AttributeInterface::BACKEND_TYPE])) {
+                    continue;
+                }
+
+                if ($attribute[AttributeInterface::BACKEND_TYPE] === 'static') {
+                    continue;
+                }
+
+                /** @var string $backendType */
+                $backendType = $attribute[AttributeInterface::BACKEND_TYPE];
+
+                foreach ($pimValues as $pimValue) {
+                    foreach($stores as $store){
+                        $dataArray = [];
+                        if($pimValue->scope == $store[0]['channel_code'] && $pimValue->locale == $store[0]['lang']) {
+                            if(is_array($pimValue->data)) {
+                                foreach($pimValue->data as $data){
+                                    if($data->currency == $store[0]['currency']){
+                                        $dataArray = [
+                                            "attribute_id" => $attribute['attribute_id'],
+                                            "store_id" => $store[0]['store_id'],
+                                            "row_id" => $pimAttribute['_entity_id'],
+                                            "value" => $data->amount
+                                        ];
+                                    }
+                                }
+                            } else {
+                                $dataArray = [
+                                    "attribute_id" => $attribute['attribute_id'],
+                                    "store_id" => $store[0]['store_id'],
+                                    "row_id" => $pimAttribute['_entity_id'],
+                                    "value" => $pimValue->data
+                                ];
+                            }
+
+                            if(isset($dataArray)){
+                                $updateCheck = $connection->select()
+                                    ->from($this->entitiesHelper->getTable( 'catalog_product_entity_' . $backendType))
+                                    ->where("attribute_id = ?",$attribute['attribute_id'])
+                                    ->where("store_id = ?",$store[0]['store_id'])
+                                    ->where("row_id = ?",$pimAttribute['_entity_id']);
+                                $attributeData = $connection->query($updateCheck)->fetch();
+
+                                if(!empty($attributeData)){
+                                    $connection->update(
+                                        $this->entitiesHelper->getTable( 'catalog_product_entity_' . $backendType) ,
+                                        $dataArray,
+                                        "attribute_id = '".$attribute['attribute_id']."' AND  store_id = '".$store[0]['store_id']."' AND row_id = '".$pimAttribute['_entity_id']."'");
+                                } else {
+                                    $connection->insert($this->entitiesHelper->getTable( 'catalog_product_entity_' . $backendType), $dataArray);
+                                }
+                            }
+                        } else {
+                            var_dump($pimValue);
+                            var_dump($pimAttribute['attribute_code']);
+                            var_dump($store[0]['store_id']);
+                        }
+                    }
+                }
+            }
+        }
+
+        exit;
     }
 
     /**
@@ -875,7 +1053,7 @@ class Product extends Import
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
-        $tmpTable = $this->entitiesHelper->getTableName($this->getCode());
+        $tmpTable = $this->entitiesHelper->getTableName($this->productCode);
 
         /** @var string|null $groupColumn */
         $groupColumn = null;
@@ -1060,7 +1238,7 @@ class Product extends Import
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
-        $tmpTable = $this->entitiesHelper->getTableName($this->getCode());
+        $tmpTable = $this->entitiesHelper->getTableName($this->productCode);
         /** @var array $websites */
         $websites = $this->storeHelper->getStores('website_id');
 
@@ -1103,7 +1281,7 @@ class Product extends Import
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
-        $tmpTable = $this->entitiesHelper->getTableName($this->getCode());
+        $tmpTable = $this->entitiesHelper->getTableName($this->productCode);
 
         if (!$connection->tableColumnExists($tmpTable, 'categories')) {
             $this->setStatus(false);
@@ -1169,7 +1347,7 @@ class Product extends Import
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
-        $tmpTable = $this->entitiesHelper->getTableName($this->getCode());
+        $tmpTable = $this->entitiesHelper->getTableName($this->productCode);
         /** @var int $websiteId */
         $websiteId = $this->configHelper->getDefaultScopeId();
         /** @var array $values */
@@ -1207,7 +1385,7 @@ class Product extends Import
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
-        $tmpTable = $this->entitiesHelper->getTableName($this->getCode());
+        $tmpTable = $this->entitiesHelper->getTableName($this->productCode);
         /** @var string $entitiesTable */
         $entitiesTable = $this->entitiesHelper->getTable('pimgento_entities');
         /** @var string $productsTable */
@@ -1250,7 +1428,7 @@ class Product extends Import
                 ->joinInner(
                     ['p' => $tmpTable],
                     'FIND_IN_SET(`c`.`code`, ' . $concat . ') AND
-                        `c`.`import` = "' . $this->getCode() . '"',
+                        `c`.`import` = "' . $this->productCode . '"',
                     [
                         'product_id'        => 'p._entity_id',
                         'linked_product_id' => 'c.entity_id',
@@ -1312,7 +1490,7 @@ class Product extends Import
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tableName */
-        $tmpTable = $this->entitiesHelper->getTableName($this->getCode());
+        $tmpTable = $this->entitiesHelper->getTableName($this->productCode);
         /** @var array $stores */
         $stores = array_merge(
             $this->storeHelper->getStores(['lang']), // en_US
@@ -1553,7 +1731,7 @@ class Product extends Import
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tableName */
-        $tmpTable = $this->entitiesHelper->getTableName($this->getCode());
+        $tmpTable = $this->entitiesHelper->getTableName($this->productCode);
         /** @var array $gallery */
         $gallery = $this->configHelper->getMediaImportGalleryColumns();
 
@@ -1714,7 +1892,7 @@ class Product extends Import
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tableName */
-        $tmpTable = $this->entitiesHelper->getTableName($this->getCode());
+        $tmpTable = $this->entitiesHelper->getTableName($this->productCode);
         /** @var array $gallery */
         $gallery = $this->configHelper->getAssetImportGalleryColumns();
 
@@ -1898,7 +2076,8 @@ class Product extends Import
      */
     public function dropTable()
     {
-        $this->entitiesHelper->dropTable($this->getCode());
+        $this->entitiesHelper->dropTable($this->productCode);
+        $this->entitiesHelper->dropTable($this->attributeCode);
     }
 
     /**
