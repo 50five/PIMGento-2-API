@@ -21,7 +21,7 @@ class FamilyVariant extends Entities
      *
      * @return array
      */
-    protected function getColumnsFromResult(array $result)
+    public function getColumnsFromResult(array $result)
     {
         /** @var array $columns */
         $columns = [];

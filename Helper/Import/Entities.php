@@ -91,6 +91,9 @@ class Entities extends AbstractHelper
      */
     public function getTableName($tableSuffix = null)
     {
+        if($tableSuffix == null){
+            var_dump($tableSuffix);
+        }
         /** @var array $fragments */
         $fragments = [
             self::TABLE_PREFIX,
@@ -101,6 +104,12 @@ class Entities extends AbstractHelper
             $fragments[] = $tableSuffix;
         }
 
+
+        if($tableSuffix == null){
+            $backtrace = debug_backtrace();
+            var_dump($backtrace[0]['function']);
+            var_dump($backtrace[1]['function']);
+        }
         return $this->getTable(join('_', $fragments));
     }
 
@@ -244,7 +253,7 @@ class Entities extends AbstractHelper
      *
      * @return array
      */
-    protected function getColumnsFromResult(array $result)
+    public function getColumnsFromResult(array $result)
     {
         /** @var array $columns */
         $columns = [];
@@ -401,7 +410,7 @@ class Entities extends AbstractHelper
     {
         /** @var string $tableName */
         $tableName = $this->getTableName($tableSuffix);
-        $this->connection->insertMultiple($tableName, $result);
+        $this->connection->insertMultiple($tableName, [$result]);
     }
 
     /**
