@@ -4,6 +4,7 @@ namespace Pimgento\Api\Job;
 
 use Akeneo\Pim\ApiClient\Pagination\PageInterface;
 use Akeneo\Pim\ApiClient\Pagination\ResourceCursorInterface;
+use Magento\Catalog\Api\CategoryRepositoryInterface;
 use Magento\Catalog\Model\Product\Link;
 use Magento\Catalog\Model\ProductLink\Link as ProductLink;
 use Magento\Catalog\Model\Product\Visibility;
@@ -168,6 +169,11 @@ class Product extends Import
     protected $productCollection;
 
     /**
+     * @var CategoryRepositoryInterface
+     */
+    protected $categoryRepository;
+
+    /**
      * Product constructor.
      *
      * @param OutputHelper $outputHelper
@@ -203,6 +209,7 @@ class Product extends Import
         StoreHelper $storeHelper,
         EavConfig $eavConfig,
         CustomMysql $customMysql,
+        CategoryRepositoryInterface $categoryRepository,
         array $data = []
     ) {
         parent::__construct($outputHelper, $eventManager, $authenticator, $data);
@@ -219,6 +226,7 @@ class Product extends Import
         $this->eavConfig = $eavConfig;
         $this->customMysql = $customMysql;
         $this->productCollection = $productCollection;
+        $this->categoryRepository = $categoryRepository;
     }
 
     /**
@@ -1565,17 +1573,11 @@ class Product extends Import
             $this->storeHelper->getStores(['lang']), // en_US
             $this->storeHelper->getStores(['lang', 'channel_code']) // en_US-channel
         );
-        /** @var bool $isUrlKeyMapped */
-        $isUrlKeyMapped = $this->configHelper->isUrlKeyMapped();
 
-
-        $urlRewrites = [];
-        $categoryRewrites = [];
         /**
          * @var string $local
          * @var array $affected
          */
-        $i=0;
         $products = $connection->fetchAll(
             $connection->select()
                 ->from($tmpProductTable, ['row_id'=>'_entity_id'])
@@ -1586,24 +1588,26 @@ class Product extends Import
             $filter[] = $product['row_id'];
         }
 
-        $products = $this->productCollection->addFieldToFilter('entity_id', array('in'=> $filter));
+        foreach ($stores as $local => $affected) {
+            foreach ($affected as $store) {
+                if (!$store['store_id']) {
+                    continue;
+                }
+                /** @var \Magento\Catalog\Model\Product $product */
+                $products = $this->productCollection
+                    ->addFieldToFilter('entity_id', array('in'=> $filter))
+                    ->addStoreFilter($store['store_id']);
+                foreach($products as $product) {
 
-        /** @var \Magento\Catalog\Model\Product $product */
-        foreach($products as $product) {
-            $urlKeyData = $connection->fetchRow(
-                $connection->select()
-                    ->from($tmpAttributeTable)
-                    ->joinInner(
-                        $tmpProductTable,
-                        $tmpAttributeTable . '._product_id = ' . $tmpProductTable . '._product_id')
-                    ->where($tmpAttributeTable.'.attribute_code = "url_key"')
-                    ->where($tmpProductTable.'._entity_id =?', $product->getId())
-            );
-            foreach ($stores as $local => $affected) {
-                foreach ($affected as $store) {
-                    if (!$store['store_id']) {
-                        continue;
-                    }
+                    $urlKeyData = $connection->fetchRow(
+                        $connection->select()
+                            ->from($tmpAttributeTable)
+                            ->joinInner(
+                                $tmpProductTable,
+                                $tmpAttributeTable . '._product_id = ' . $tmpProductTable . '._product_id')
+                            ->where($tmpAttributeTable.'.attribute_code = "url_key"')
+                            ->where($tmpProductTable.'._entity_id =?', $product->getId())
+                    );
 
                     if(!empty($urlKeyData['value-'.$local])){
                         $product->setUrlKey($urlKeyData['value-' . $local]);
@@ -1655,17 +1659,20 @@ class Product extends Import
 
                         if ($isCategoryUsedInProductUrl) {
                             /** @var \Magento\Catalog\Model\ResourceModel\Category\Collection $categories */
-                            $categories = $product->getCategoryCollection();
-                            $categories->addAttributeToSelect('url_key');
+                            $categories = $product->getCategoryIds();
 
                             /** @var CategoryModel $category */
-                            foreach ($categories as $category) {
+                            foreach ($categories as $categoryId) {
+
+                                $category = $this->categoryRepository->get($categoryId, $product->getStoreId());
+
                                 /** @var string $requestPath */
                                 $requestPath = $this->productUrlPathGenerator->getUrlPathWithSuffix(
                                     $product,
                                     $product->getStoreId(),
                                     $category
                                 );
+
                                 $paths[$requestPath] = [
                                     'request_path' => $requestPath,
                                     'target_path'  => 'catalog/product/view/id/' . $product->getEntityId() . '/category/' . $category->getId(),
@@ -1673,7 +1680,10 @@ class Product extends Import
                                     'category_id'  => $category->getId(),
                                 ];
                                 $parents = $category->getParentCategories();
-                                foreach ($parents as $parent) {
+                                foreach ($parents as $parentId) {
+
+                                    $parent = $this->categoryRepository->get($parentId->getId(), $product->getStoreId());
+
                                     /** @var string $requestPath */
                                     $requestPath = $this->productUrlPathGenerator->getUrlPathWithSuffix(
                                         $product,
