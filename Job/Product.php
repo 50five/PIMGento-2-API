@@ -34,6 +34,7 @@ use Zend_Db_Expr as Expr;
 use Zend_Db_Statement_Pdo;
 use Magento\Eav\Api\Data\AttributeInterface;
 use Magento\Eav\Model\Config as EavConfig;
+use Magento\Catalog\Model\ResourceModel\Product\Collection as ProductCollection;
 
 /**
  * Class Product
@@ -162,6 +163,11 @@ class Product extends Import
     protected $customMysql;
 
     /**
+     * @var ProductCollection
+     */
+    protected $productCollection;
+
+    /**
      * Product constructor.
      * @param OutputHelper $outputHelper
      * @param ManagerInterface $eventManager
@@ -171,6 +177,7 @@ class Product extends Import
      * @param ProductFilters $productFilters
      * @param ScopeConfigInterface $scopeConfig
      * @param JsonSerializer $serializer
+     * @param ProductCollection $productCollection
      * @param ProductModel $product
      * @param ProductUrlPathGenerator $productUrlPathGenerator
      * @param TypeListInterface $cacheTypeList
@@ -188,6 +195,7 @@ class Product extends Import
         ProductFilters $productFilters,
         ScopeConfigInterface $scopeConfig,
         JsonSerializer $serializer,
+        ProductCollection $productCollection,
         ProductModel $product,
         ProductUrlPathGenerator $productUrlPathGenerator,
         TypeListInterface $cacheTypeList,
@@ -209,6 +217,7 @@ class Product extends Import
         $this->productUrlPathGenerator = $productUrlPathGenerator;
         $this->eavConfig = $eavConfig;
         $this->customMysql = $customMysql;
+        $this->productCollection = $productCollection;
     }
 
     /**
@@ -988,6 +997,7 @@ class Product extends Import
 
         $products = $connection->query($productSelect)->fetchAll();
         $dataArray = [];
+        $i=0;
         foreach($products as $product){
             $attributeSelect = $connection->select()
                 ->from(
@@ -1029,24 +1039,29 @@ class Product extends Import
                                     $value = $this->getOptionValue($pimAttribute['attribute_code'], $value);
                                 }
 
-                                $dataArray[$backendType][] = [
+                                $dataArray[$backendType][$i][] = [
                                     "attribute_id" => $attribute['attribute_id'],
                                     "store_id" => $storeData[0]['store_id'],
                                     "row_id" => $pimAttribute['_entity_id'],
                                     "value" => $value
                                 ];
+                                // todo create nicer batches with manageable batch sizes
+                                if(count($dataArray[$backendType][$i]) == 1000){
+                                    $i++;
+                                }
                             }
                         }
                     }
                 }
             }
         }
-        foreach($dataArray as $backendType => $data){
-            // Custom mysql reason is activating replace on duplicate for insertArray alternative is saving attributes one by one (time consuming)
-            $this->customMysql->insertMultiple(
-                $connection,
-                $this->entitiesHelper->getTable( 'catalog_product_entity_' . $backendType),
-                $data);
+        foreach($dataArray as $backendType => $batches){
+            foreach($batches as $data) {// Custom mysql reason is activating replace on duplicate for insertArray alternative is saving attributes one by one (time consuming)
+                $this->customMysql->insertMultiple(
+                    $connection,
+                    $this->entitiesHelper->getTable( 'catalog_product_entity_' . $backendType),
+                    $data);
+            }
         }
     }
 
@@ -1535,7 +1550,7 @@ class Product extends Import
 
     /**
      * Set Url Rewrite
-     *
+     * todo improve speed on creating URL rewrite list speed is lost by using modules to create URL's
      * @return void
      * @throws LocalizedException
      * @throws \Zend_Db_Exception
@@ -1556,236 +1571,206 @@ class Product extends Import
         /** @var bool $isUrlKeyMapped */
         $isUrlKeyMapped = $this->configHelper->isUrlKeyMapped();
 
+
+        $urlRewrites = [];
+        $categoryRewrites = [];
         /**
          * @var string $local
          * @var array $affected
          */
-        foreach ($stores as $local => $affected) {
-            if (!$isUrlKeyMapped && !$connection->tableColumnExists($tmpAttributeTable, 'value-' . $local)) {
-                $connection->addColumn(
-                    $tmpAttributeTable,
-                    'value-' . $local,
-                    [
-                        'type' => 'text',
-                        'length' => 255,
-                        'default' => '',
-                        'COMMENT' => ' ',
-                        'nullable' => false
-                    ]
-                );
-                //$connection->update($tmpAttributeTable, ['value-' . $local => new Expr('`url_key`')]);
-            }
+        $i=0;
+        $products = $connection->fetchAll(
+            $connection->select()
+                ->from($tmpProductTable, ['row_id'=>'_entity_id'])
+        );
 
-            /**
-             * @var array $affected
-             * @var array $store
-             */
-            foreach ($affected as $store) {
-                if (!$store['store_id']) {
-                    continue;
-                }
-                /** @var \Magento\Framework\DB\Select $select */
-                $select = $connection->select()
-                    ->from(
-                        $tmpAttributeTable
-                    )
+        $filter = [];
+        foreach($products as $product){
+            $filter[] = $product['row_id'];
+        }
+
+        $products = $this->productCollection->addFieldToFilter('entity_id', array('in'=> $filter));
+
+        /** @var \Magento\Catalog\Model\Product $product */
+        foreach($products as $product) {
+            $urlKeyData = $connection->fetchRow(
+                $connection->select()
+                    ->from($tmpAttributeTable)
                     ->joinInner(
                         $tmpProductTable,
                         $tmpAttributeTable . '._product_id = ' . $tmpProductTable . '._product_id')
-                    ->where('attribute_code = "url_key"');
-
-                /** @var \Magento\Framework\DB\Statement\Pdo\Mysql $query */
-                $query = $connection->query($select);
-
-                /** @var array $row */
-                while (($row = $query->fetch())) {
-
-                    /** @var ProductModel $product */
-                    $product = $this->product;
-                    $product->setEntityId($row['_entity_id']);
-                    $product->setUrlKey($row['value-' . $local]);
-                    $product->setStoreId($store['store_id']);
-
-                    /** @var string $urlPath */
-                    $urlPath = $this->productUrlPathGenerator->getUrlPath($product);
-
-                    if (!$urlPath) {
+                    ->where($tmpAttributeTable.'.attribute_code = "url_key"')
+                    ->where($tmpProductTable.'._entity_id =?', $product->getId())
+            );
+            foreach ($stores as $local => $affected) {
+                foreach ($affected as $store) {
+                    if (!$store['store_id']) {
                         continue;
                     }
 
-                    /** @var string $requestPath */
-                    $requestPath = $this->productUrlPathGenerator->getUrlPathWithSuffix(
-                        $product,
-                        $product->getStoreId()
-                    );
+                    if(!empty($urlKeyData['value-'.$local])){
+                        $product->setUrlKey($urlKeyData['value-' . $local]);
+                        $product->setStoreId($affected[0]['store_id']);
 
-                    /** @var string|null $exists */
-                    $exists = $connection->fetchOne(
-                        $connection->select()
-                            ->from($this->entitiesHelper->getTable('url_rewrite'), new Expr(1))
-                            ->where('entity_type = ?', ProductUrlRewriteGenerator::ENTITY_TYPE)
-                            ->where('request_path = ?', $requestPath)
-                            ->where('store_id = ?', $product->getStoreId())
-                            ->where('entity_id <> ?', $product->getEntityId())
-                    );
-                    if ($exists) {
-                        $product->setUrlKey($product->getUrlKey() . '-' . $product->getStoreId());
+                        $urlPath = $this->productUrlPathGenerator->getUrlPath($product);
+                        if (!$urlPath) {
+                            continue;
+                        }
+
                         /** @var string $requestPath */
                         $requestPath = $this->productUrlPathGenerator->getUrlPathWithSuffix(
                             $product,
                             $product->getStoreId()
                         );
-                    }
 
-                    /** @var array $paths */
-                    $paths = [
-                        $requestPath => [
-                            'request_path' => $requestPath,
-                            'target_path'  => 'catalog/product/view/id/' . $product->getEntityId(),
-                            'metadata'     => null,
-                            'category_id'  => null,
-                        ]
-                    ];
-
-                    /** @var bool $isCategoryUsedInProductUrl */
-                    $isCategoryUsedInProductUrl = $this->configHelper->isCategoryUsedInProductUrl(
-                        $product->getStoreId()
-                    );
-
-                    if ($isCategoryUsedInProductUrl) {
-                        /** @var \Magento\Catalog\Model\ResourceModel\Category\Collection $categories */
-                        $categories = $product->getCategoryCollection();
-                        $categories->addAttributeToSelect('url_key');
-
-                        /** @var CategoryModel $category */
-                        foreach ($categories as $category) {
+                        /** @var string|null $exists */
+                        $exists = $connection->fetchOne(
+                            $connection->select()
+                                ->from($this->entitiesHelper->getTable('url_rewrite'), new Expr(1))
+                                ->where('entity_type = ?', ProductUrlRewriteGenerator::ENTITY_TYPE)
+                                ->where('request_path = ?', $requestPath)
+                                ->where('store_id = ?', $product->getStoreId())
+                                ->where('entity_id <> ?', $product->getEntityId())
+                        );
+                        if ($exists) {
+                            $product->setUrlKey($product->getUrlKey() . '-' . $product->getStoreId());
                             /** @var string $requestPath */
                             $requestPath = $this->productUrlPathGenerator->getUrlPathWithSuffix(
                                 $product,
-                                $product->getStoreId(),
-                                $category
+                                $product->getStoreId()
                             );
-                            $paths[$requestPath] = [
+                        }
+
+                        /** @var array $paths */
+                        $paths = [
+                            $requestPath => [
                                 'request_path' => $requestPath,
-                                'target_path'  => 'catalog/product/view/id/' . $product->getEntityId() . '/category/' . $category->getId(),
-                                'metadata'     => '{"category_id":"' . $category->getId() . '"}',
-                                'category_id'  => $category->getId(),
-                            ];
-                            $parents = $category->getParentCategories();
-                            foreach ($parents as $parent) {
+                                'target_path'  => 'catalog/product/view/id/' . $product->getEntityId(),
+                                'metadata'     => null,
+                                'category_id'  => null,
+                            ]
+                        ];
+
+                        /** @var bool $isCategoryUsedInProductUrl */
+                        $isCategoryUsedInProductUrl = $this->configHelper->isCategoryUsedInProductUrl(
+                            $product->getStoreId()
+                        );
+
+                        if ($isCategoryUsedInProductUrl) {
+                            /** @var \Magento\Catalog\Model\ResourceModel\Category\Collection $categories */
+                            $categories = $product->getCategoryCollection();
+                            $categories->addAttributeToSelect('url_key');
+
+                            /** @var CategoryModel $category */
+                            foreach ($categories as $category) {
                                 /** @var string $requestPath */
                                 $requestPath = $this->productUrlPathGenerator->getUrlPathWithSuffix(
                                     $product,
                                     $product->getStoreId(),
-                                    $parent
+                                    $category
                                 );
-                                if (isset($paths[$requestPath])) {
-                                    continue;
-                                }
                                 $paths[$requestPath] = [
                                     'request_path' => $requestPath,
-                                    'target_path'  => 'catalog/product/view/id/' . $product->getEntityId() . '/category/' . $parent->getId(),
-                                    'metadata'     => '{"category_id":"' . $parent->getId() . '"}',
-                                    'category_id'  => $parent->getId(),
+                                    'target_path'  => 'catalog/product/view/id/' . $product->getEntityId() . '/category/' . $category->getId(),
+                                    'metadata'     => '{"category_id":"' . $category->getId() . '"}',
+                                    'category_id'  => $category->getId(),
                                 ];
+                                $parents = $category->getParentCategories();
+                                foreach ($parents as $parent) {
+                                    /** @var string $requestPath */
+                                    $requestPath = $this->productUrlPathGenerator->getUrlPathWithSuffix(
+                                        $product,
+                                        $product->getStoreId(),
+                                        $parent
+                                    );
+                                    if (isset($paths[$requestPath])) {
+                                        continue;
+                                    }
+                                    $paths[$requestPath] = [
+                                        'request_path' => $requestPath,
+                                        'target_path'  => 'catalog/product/view/id/' . $product->getEntityId() . '/category/' . $parent->getId(),
+                                        'metadata'     => '{"category_id":"' . $parent->getId() . '"}',
+                                        'category_id'  => $parent->getId(),
+                                    ];
+                                }
                             }
                         }
-                    }
 
-                    foreach ($paths as $path) {
-                        if (!isset($path['request_path'], $path['target_path'])) {
-                            continue;
-                        }
-                        /** @var string $requestPath */
-                        $requestPath = $path['request_path'];
-                        /** @var string $targetPath */
-                        $targetPath = $path['target_path'];
-                        /** @var string $metadata */
-                        $metadata = $path['metadata'];
+                        foreach ($paths as $path) {
+                            if (!isset($path['request_path'], $path['target_path'])) {
+                                continue;
+                            }
+                            /** @var string $requestPath */
+                            $requestPath = $path['request_path'];
+                            /** @var string $targetPath */
+                            $targetPath = $path['target_path'];
+                            /** @var string $metadata */
+                            $metadata = $path['metadata'];
 
-                        /** @var string|null $rewriteId */
-                        $rewriteId = $connection->fetchOne(
-                            $connection->select()
-                                ->from($this->entitiesHelper->getTable('url_rewrite'), ['url_rewrite_id'])
-                                ->where('entity_type = ?', ProductUrlRewriteGenerator::ENTITY_TYPE)
-                                ->where('target_path = ?', $targetPath)
-                                ->where('entity_id = ?', $product->getEntityId())
-                                ->where('store_id = ?', $product->getStoreId())
-                        );
-
-
-                        if ($rewriteId) {
                             /** @var string|null $rewriteId */
-                            $exists = $connection->fetchOne(
+                            $rewriteId = $connection->fetchOne(
                                 $connection->select()
                                     ->from($this->entitiesHelper->getTable('url_rewrite'), ['url_rewrite_id'])
                                     ->where('entity_type = ?', ProductUrlRewriteGenerator::ENTITY_TYPE)
-                                    ->where('request_path = ?', $requestPath)
                                     ->where('target_path = ?', $targetPath)
                                     ->where('entity_id = ?', $product->getEntityId())
                                     ->where('store_id = ?', $product->getStoreId())
                             );
 
-                            // remove duplicate rewrite.
-                            if($exists) {
-                                $connection->delete(
-                                    $this->entitiesHelper->getTable('url_rewrite'),
-                                    "url_rewrite_id = " . $rewriteId
-                                );
-                            } else {
+                            if ($rewriteId) {
                                 $connection->update(
                                     $this->entitiesHelper->getTable('url_rewrite'),
                                     ['request_path' => $requestPath, 'metadata' => $metadata],
                                     ['url_rewrite_id = ?' => $rewriteId]
                                 );
+                            } else {
+                                /** @var array $data */
+                                $data = [
+                                    'entity_type' => ProductUrlRewriteGenerator::ENTITY_TYPE,
+                                    'entity_id' => $product->getEntityId(),
+                                    'request_path' => $requestPath,
+                                    'target_path' => $targetPath,
+                                    'redirect_type' => 0,
+                                    'store_id' => $product->getStoreId(),
+                                    'is_autogenerated' => 1,
+                                    'metadata' => $metadata,
+                                ];
+
+                                $connection->insertOnDuplicate(
+                                    $this->entitiesHelper->getTable('url_rewrite'),
+                                    $data,
+                                    array_keys($data)
+                                );
+
+                                if ($isCategoryUsedInProductUrl && $path['category_id']) {
+                                    /** @var int $rewriteId */
+                                    $rewriteId = $connection->fetchOne(
+                                        $connection->select()
+                                            ->from($this->entitiesHelper->getTable('url_rewrite'), ['url_rewrite_id'])
+                                            ->where('entity_type = ?', ProductUrlRewriteGenerator::ENTITY_TYPE)
+                                            ->where('target_path = ?', $targetPath)
+                                            ->where('entity_id = ?', $product->getEntityId())
+                                            ->where('store_id = ?', $product->getStoreId())
+                                    );
+                                }
                             }
-                        } else {
-                            /** @var array $data */
-                            $data = [
-                                'entity_type' => ProductUrlRewriteGenerator::ENTITY_TYPE,
-                                'entity_id' => $product->getEntityId(),
-                                'request_path' => $requestPath,
-                                'target_path' => $targetPath,
-                                'redirect_type' => 0,
-                                'store_id' => $product->getStoreId(),
-                                'is_autogenerated' => 1,
-                                'metadata' => $metadata,
-                            ];
 
-                            $connection->insertOnDuplicate(
-                                $this->entitiesHelper->getTable('url_rewrite'),
-                                $data,
-                                array_keys($data)
-                            );
-
-                            if ($isCategoryUsedInProductUrl && $path['category_id']) {
-                                /** @var int $rewriteId */
-                                $rewriteId = $connection->fetchOne(
-                                    $connection->select()
-                                        ->from($this->entitiesHelper->getTable('url_rewrite'), ['url_rewrite_id'])
-                                        ->where('entity_type = ?', ProductUrlRewriteGenerator::ENTITY_TYPE)
-                                        ->where('target_path = ?', $targetPath)
-                                        ->where('entity_id = ?', $product->getEntityId())
-                                        ->where('store_id = ?', $product->getStoreId())
+                            if ($isCategoryUsedInProductUrl && $rewriteId && $path['category_id']) {
+                                $data = [
+                                    'url_rewrite_id' => $rewriteId,
+                                    'category_id'    => $path['category_id'],
+                                    'product_id'     => $product->getEntityId()
+                                ];
+                                $connection->delete(
+                                    $this->entitiesHelper->getTable('catalog_url_rewrite_product_category'),
+                                    ['url_rewrite_id = ?' => $rewriteId]
+                                );
+                                $connection->insertOnDuplicate(
+                                    $this->entitiesHelper->getTable('catalog_url_rewrite_product_category'),
+                                    $data,
+                                    array_keys($data)
                                 );
                             }
-                        }
-
-                        if ($isCategoryUsedInProductUrl && $rewriteId && $path['category_id']) {
-                            $data = [
-                                'url_rewrite_id' => $rewriteId,
-                                'category_id'    => $path['category_id'],
-                                'product_id'     => $product->getEntityId()
-                            ];
-                            $connection->delete(
-                                $this->entitiesHelper->getTable('catalog_url_rewrite_product_category'),
-                                ['url_rewrite_id = ?' => $rewriteId]
-                            );
-                            $connection->insertOnDuplicate(
-                                $this->entitiesHelper->getTable('catalog_url_rewrite_product_category'),
-                                $data,
-                                array_keys($data)
-                            );
                         }
                     }
                 }
@@ -1809,8 +1794,10 @@ class Product extends Import
 
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
-        /** @var string $tableName */
-        $tmpTable = $this->entitiesHelper->getTableName($this->productCode);
+        /** @var string $tmpProductTable */
+        $tmpProductTable = $this->entitiesHelper->getTableName($this->productCode);
+        /** @var string $tmpAttributeTable */
+        $tmpAttributeTable = $this->entitiesHelper->getTableName($this->attributeCode);
         /** @var array $gallery */
         $gallery = $this->configHelper->getMediaImportGalleryColumns();
 
@@ -1826,25 +1813,6 @@ class Product extends Import
         /** @var string $columnIdentifier */
         $columnIdentifier = $this->entitiesHelper->getColumnIdentifier($table);
 
-        /** @var array $data */
-        $data = [
-            $columnIdentifier => '_entity_id',
-            'sku'             => 'identifier',
-        ];
-        foreach ($gallery as $image) {
-            if (!$connection->tableColumnExists($tmpTable, $image)) {
-                $this->setMessage(__('Warning: %1 attribute does not exist', $image));
-                continue;
-            }
-            $data[$image] = $image;
-        }
-
-        /** @var \Magento\Framework\DB\Select $select */
-        $select = $connection->select()->from($tmpTable, $data);
-
-        /** @var \Magento\Framework\DB\Statement\Pdo\Mysql $query */
-        $query = $connection->query($select);
-
         /** @var \Magento\Catalog\Model\ResourceModel\Eav\Attribute $galleryAttribute */
         $galleryAttribute = $this->configHelper->getAttribute(ProductModel::ENTITY, 'media_gallery');
         /** @var string $galleryTable */
@@ -1854,37 +1822,45 @@ class Product extends Import
         /** @var string $productImageTable */
         $productImageTable = $this->entitiesHelper->getTable('catalog_product_entity_varchar');
 
-        /** @var array $row */
-        while (($row = $query->fetch())) {
-            /** @var array $files */
-            $files = [];
-            foreach ($gallery as $image) {
-                if (!isset($row[$image])) {
+        foreach ($gallery as $image) {
+
+            $mediaAttributes = $connection->fetchAll(
+                $connection->select()
+                    ->from($tmpAttributeTable)
+                    ->joinInner(
+                        $tmpProductTable,
+                        $tmpAttributeTable . '._product_id = ' . $tmpProductTable . '._product_id')
+                    ->where($tmpAttributeTable.'.attribute_code = ?', $image)
+            );
+
+            if(empty($mediaAttributes))  {
+                $this->setStatus(false);
+                $this->setMessage(__('There are no images for: ') . $image);
+                continue;
+            }
+
+            foreach($mediaAttributes as $mediaAttribute) {
+
+                if (empty($mediaAttribute['value'])) {
                     continue;
                 }
-
-                if (!$row[$image]) {
-                    continue;
-                }
-
                 /** @var array $media */
-                $media = $this->akeneoClient->getProductMediaFileApi()->get($row[$image]);
+                $media = $this->akeneoClient->getProductMediaFileApi()->get($mediaAttribute['value']);
                 /** @var string $name */
                 $name  = basename($media['code']);
 
                 if (!$this->configHelper->mediaFileExists($name)) {
-                    $binary = $this->akeneoClient->getProductMediaFileApi()->download($row[$image]);
+                    $binary = $this->akeneoClient->getProductMediaFileApi()->download($mediaAttribute['value']);
                     $this->configHelper->saveMediaFile($name, $binary);
                 }
 
                 /** @var string $file */
                 $file = $this->configHelper->getMediaFilePath($name);
-
                 /** @var int $valueId */
                 $valueId = $connection->fetchOne(
                     $connection->select()
-                    ->from($galleryTable, ['value_id'])
-                    ->where('value = ?', $file)
+                        ->from($galleryTable, ['value_id'])
+                        ->where('value = ?', $file)
                 );
 
                 if (!$valueId) {
@@ -1908,7 +1884,7 @@ class Product extends Import
                 /** @var array $data */
                 $data =  [
                     'value_id'        => $valueId,
-                    $columnIdentifier => $row[$columnIdentifier]
+                    $columnIdentifier => $mediaAttribute['_entity_id']
                 ];
                 $connection->insertOnDuplicate($galleryEntityTable, $data, array_keys($data));
 
@@ -1923,27 +1899,27 @@ class Product extends Import
                     $data = [
                         'attribute_id'    => $column['attribute'],
                         'store_id'        => 0,
-                        $columnIdentifier => $row[$columnIdentifier],
+                        $columnIdentifier => $mediaAttribute['_entity_id'],
                         'value'           => $file
                     ];
                     $connection->insertOnDuplicate($productImageTable, $data, array_keys($data));
                 }
 
                 $files[] = $file;
+
+                /** @var \Magento\Framework\DB\Select $cleaner */
+                $cleaner = $connection->select()
+                    ->from($galleryTable, ['value_id'])
+                    ->where('value NOT IN (?)', $files);
+
+                $connection->delete(
+                    $galleryEntityTable,
+                    [
+                        'value_id IN (?)'          => $cleaner,
+                        $columnIdentifier . ' = ?' => $mediaAttribute['_entity_id']
+                    ]
+                );
             }
-
-            /** @var \Magento\Framework\DB\Select $cleaner */
-            $cleaner = $connection->select()
-                ->from($galleryTable, ['value_id'])
-                ->where('value NOT IN (?)', $files);
-
-            $connection->delete(
-                $galleryEntityTable,
-                [
-                    'value_id IN (?)'          => $cleaner,
-                    $columnIdentifier . ' = ?' => $row[$columnIdentifier]
-                ]
-            );
         }
     }
 
@@ -1970,10 +1946,23 @@ class Product extends Import
 
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
-        /** @var string $tableName */
-        $tmpTable = $this->entitiesHelper->getTableName($this->productCode);
+        /** @var string $tmpProductTable */
+        $tmpProductTable = $this->entitiesHelper->getTableName($this->productCode);
+        /** @var string $tmpAttributeTable */
+        $tmpAttributeTable = $this->entitiesHelper->getTableName($this->attributeCode);
         /** @var array $gallery */
         $gallery = $this->configHelper->getAssetImportGalleryColumns();
+
+        /** @var \Magento\Catalog\Model\ResourceModel\Eav\Attribute $galleryAttribute */
+        $galleryAttribute = $this->configHelper->getAttribute(ProductModel::ENTITY, 'media_gallery');
+        /** @var string $galleryTable */
+        $galleryTable = $this->entitiesHelper->getTable('catalog_product_entity_media_gallery');
+        /** @var string $galleryEntityTable */
+        $galleryEntityTable = $this->entitiesHelper->getTable('catalog_product_entity_media_gallery_value_to_entity');
+        /** @var string $galleryValueTable */
+        $galleryValueTable = $this->entitiesHelper->getTable('catalog_product_entity_media_gallery_value');
+        /** @var string $productImageTable */
+        $productImageTable = $this->entitiesHelper->getTable('catalog_product_entity_varchar');
 
         if (empty($gallery)) {
             $this->setStatus(false);
@@ -1987,51 +1976,27 @@ class Product extends Import
         /** @var string $columnIdentifier */
         $columnIdentifier = $this->entitiesHelper->getColumnIdentifier($table);
 
-        /** @var array $data */
-        $data = [
-            $columnIdentifier => '_entity_id',
-            'sku'             => 'identifier',
-        ];
+        $files = [];
         foreach ($gallery as $asset) {
-            if (!$connection->tableColumnExists($tmpTable, $asset)) {
-                $this->setMessage(__('Warning: %1 attribute does not exist', $asset));
+
+            $assetAttributes = $connection->fetchAll(
+                $connection->select()
+                    ->from($tmpAttributeTable)
+                    ->joinInner(
+                        $tmpProductTable,
+                        $tmpAttributeTable . '._product_id = ' . $tmpProductTable . '._product_id')
+                    ->where($tmpAttributeTable.'.attribute_code = ?', $asset)
+            );
+
+            if(empty($assetAttributes))  {
+                $this->setStatus(false);
+                $this->setMessage(__('There are no assets for: ') . $asset);
                 continue;
             }
-            $data[$asset] = $asset;
-        }
 
-        /** @var \Magento\Framework\DB\Select $select */
-        $select = $connection->select()->from($tmpTable, $data);
-
-        /** @var \Magento\Framework\DB\Statement\Pdo\Mysql $query */
-        $query = $connection->query($select);
-
-        /** @var \Magento\Catalog\Model\ResourceModel\Eav\Attribute $galleryAttribute */
-        $galleryAttribute = $this->configHelper->getAttribute(ProductModel::ENTITY, 'media_gallery');
-        /** @var string $galleryTable */
-        $galleryTable = $this->entitiesHelper->getTable('catalog_product_entity_media_gallery');
-        /** @var string $galleryEntityTable */
-        $galleryEntityTable = $this->entitiesHelper->getTable('catalog_product_entity_media_gallery_value_to_entity');
-        /** @var string $galleryValueTable */
-        $galleryValueTable = $this->entitiesHelper->getTable('catalog_product_entity_media_gallery_value');
-        /** @var string $productImageTable */
-        $productImageTable = $this->entitiesHelper->getTable('catalog_product_entity_varchar');
-
-        /** @var array $row */
-        while (($row = $query->fetch())) {
-            /** @var array $files */
-            $files = [];
-            foreach ($gallery as $asset) {
-                if (!isset($row[$asset])) {
-                    continue;
-                }
-
-                if (!$row[$asset]) {
-                    continue;
-                }
-
+            foreach($assetAttributes as $assetAttribute){
                 /** @var array $assets */
-                $assets = explode(',', $row[$asset]);
+                $assets = explode(',', $assetAttribute['value']);
 
                 foreach ($assets as $key => $code) {
                     /** @var array $media */
@@ -2091,7 +2056,7 @@ class Product extends Import
                     /** @var array $data */
                     $data = [
                         'value_id'        => $valueId,
-                        $columnIdentifier => $row[$columnIdentifier]
+                        'row_id' => $assetAttribute['_entity_id']
                     ];
                     $connection->insertOnDuplicate($galleryEntityTable, $data, array_keys($data));
 
@@ -2099,7 +2064,7 @@ class Product extends Import
                     $data = [
                         'value_id'        => $valueId,
                         'store_id'        => 0,
-                        $columnIdentifier => $row[$columnIdentifier],
+                        'row_id' => $assetAttribute['_entity_id'],
                         'label'           => $media['description'],
                         'position'        => $key,
                         'disabled'        => 0,
@@ -2122,7 +2087,7 @@ class Product extends Import
                             $data = [
                                 'attribute_id'    => $attribute->getId(),
                                 'store_id'        => 0,
-                                $columnIdentifier => $row[$columnIdentifier],
+                                'row_id' => $assetAttribute['_entity_id'],
                                 'value'           => $file
                             ];
                             $connection->insertOnDuplicate($productImageTable, $data, array_keys($data));
@@ -2131,20 +2096,20 @@ class Product extends Import
 
                     $files[] = $file;
                 }
+
+                /** @var \Magento\Framework\DB\Select $cleaner */
+                $cleaner = $connection->select()
+                    ->from($galleryTable, ['value_id'])
+                    ->where('value NOT IN (?)', $files);
+
+                $connection->delete(
+                    $galleryEntityTable,
+                    [
+                        'value_id IN (?)'          => $cleaner,
+                        'row_id = ?' => $assetAttribute['_entity_id']
+                    ]
+                );
             }
-
-            /** @var \Magento\Framework\DB\Select $cleaner */
-            $cleaner = $connection->select()
-                ->from($galleryTable, ['value_id'])
-                ->where('value NOT IN (?)', $files);
-
-            $connection->delete(
-                $galleryEntityTable,
-                [
-                    'value_id IN (?)'          => $cleaner,
-                    $columnIdentifier . ' = ?' => $row[$columnIdentifier]
-                ]
-            );
         }
     }
 
@@ -2155,7 +2120,6 @@ class Product extends Import
      */
     public function dropTable()
     {
-        exit;
         $this->entitiesHelper->dropTable($this->productCode);
         $this->entitiesHelper->dropTable($this->attributeCode);
     }
