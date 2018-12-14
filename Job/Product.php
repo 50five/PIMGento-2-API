@@ -169,6 +169,7 @@ class Product extends Import
 
     /**
      * Product constructor.
+     *
      * @param OutputHelper $outputHelper
      * @param ManagerInterface $eventManager
      * @param Authenticator $authenticator
@@ -507,10 +508,8 @@ class Product extends Import
         /** @var string $variantTable */
         $variantTable = $this->entitiesHelper->getTable('pimgento_product_model');
 
-        try{
-            $select = $connection->select()
-                ->from(false, [$groupColumn => 'v.parent'])
-                ->joinInner(
+        if ($connection->tableColumnExists($variantTable, 'parent')) {
+            $select = $connection->select()->from(false, [$groupColumn => 'v.parent'])->joinInner(
                     ['v' => $variantTable],
                     'v.parent IS NOT NULL AND e.' . $groupColumn . ' = v.code',
                     []
@@ -519,8 +518,6 @@ class Product extends Import
             $connection->query(
                 $connection->updateFromSelect($select, ['e' => $tmpTable])
             );
-        } catch( \Exception $e){
-            var_dump($e->getMessage());
         }
 
         /** @var array $data */
