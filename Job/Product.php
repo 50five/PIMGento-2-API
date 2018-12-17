@@ -700,103 +700,6 @@ class Product extends Import
     }
 
     /**
-     * Replace option code by id
-     *
-     * @return void
-     * @throws \Zend_Db_Statement_Exception
-     */
-    public function updateOption()
-    {
-        /** @var AdapterInterface $connection */
-        $connection = $this->entitiesHelper->getConnection();
-        /** @var string $tmpTable */
-        $tmpTable = $this->entitiesHelper->getTableName($this->productCode);
-        /** @var string[] $columns */
-        $columns = array_keys($connection->describeTable($tmpTable));
-        /** @var string[] $except */
-        $except = [
-            '_entity_id',
-            '_is_new',
-            '_status',
-            '_type_id',
-            '_options_container',
-            '_tax_class_id',
-            '_attribute_set_id',
-            '_visibility',
-            '_children',
-            '_axis',
-            'identifier',
-            'categories',
-            'family',
-            'groups',
-            'parent',
-            'url_key',
-            'enabled',
-        ];
-
-        /** @var string $column */
-        foreach ($columns as $column) {
-            if (in_array($column, $except) || preg_match('/-unit/', $column)) {
-                continue;
-            }
-
-            if (!$connection->tableColumnExists($tmpTable, $column)) {
-                continue;
-            }
-
-            /** @var array|string $columnPrefix */
-            $columnPrefix = explode('-', $column);
-            $columnPrefix = reset($columnPrefix);
-            /** @var int $prefixLength */
-            $prefixLength = strlen($columnPrefix . '_') + 1;
-            /** @var string $entitiesTable */
-            $entitiesTable = $this->entitiesHelper->getTable('pimgento_entities');
-
-            // Sub select to increase performance versus FIND_IN_SET
-            /** @var Select $subSelect */
-            $subSelect = $connection->select()
-                ->from(
-                    ['c' => $entitiesTable],
-                    ['code' => 'SUBSTRING(`c`.`code`, ' . $prefixLength . ')', 'entity_id' => 'c.entity_id']
-                )
-                ->where('c.code LIKE "' . $columnPrefix . '_%" ')
-                ->where('c.import = ?', 'option');
-
-            // if no option no need to continue process
-            if (!$connection->query($subSelect)->rowCount()) {
-                continue;
-            }
-
-            //in case of multiselect
-            /** @var string $conditionJoin */
-            $conditionJoin = "IF ( locate(',', `".$column."`) > 0 , " . "`p`.`" . $column . "` like " . new Expr(
-                    "CONCAT('%', `c1`.`code`, '%')"
-                ) . ", `p`.`" . $column . "` = `c1`.`code` )";
-
-            /** @var Select $select */
-            $select = $connection->select()
-                ->from(
-                    ['p' => $tmpTable],
-                    ['identifier' => 'p.identifier', 'entity_id' => 'p._entity_id']
-                )->joinInner(
-                    ['c1' => new Expr('(' . (string)$subSelect . ')')],
-                    new Expr($conditionJoin),
-                    [$column => new Expr('GROUP_CONCAT(`c1`.`entity_id` SEPARATOR ",")')]
-                )->group('p.identifier');
-
-            /** @var string $query */
-            $query = $connection->insertFromSelect(
-                $select,
-                $tmpTable,
-                ['identifier', '_entity_id', $column],
-                AdapterInterface::INSERT_ON_DUPLICATE
-            );
-
-            $connection->query($query);
-        }
-    }
-
-    /**
      * Create product entities
      *
      * @return void
@@ -1041,7 +944,9 @@ class Product extends Import
                                     ->from('eav_attribute_option')
                                     ->where('attribute_id = ?', $attribute['attribute_id']);
                                 if($connection->query($checkOptions)->rowCount() != 0){
-                                    $value = $this->getOptionValue($pimAttribute['attribute_code'], $value);
+                                    if(!$this->validateValue($value)){
+                                        $value = $this->getOptionValue($pimAttribute['attribute_code'], $value);
+                                    }
                                 }
 
                                 $dataArray[$backendType][$i][] = [
@@ -1113,7 +1018,29 @@ class Product extends Import
             ->where('c.import = ?', 'option');
 
         $result = $connection->query($subSelect)->fetch();
+
         return ($result['entity_id']? $result['entity_id'] : false);
+    }
+
+    /**
+     * @param $value
+     * @return bool
+     */
+    protected function validateValue($value)
+    {
+        $connection = $this->entitiesHelper->getConnection();
+        $entitiesTable = $this->entitiesHelper->getTable('pimgento_entities');
+
+        $subSelect = $connection->select()
+            ->from(
+                ['c' => $entitiesTable],
+                ['entity_id' => 'c.entity_id']
+            )
+            ->where('entity_id = "' . $value . '"');
+
+        $result = $connection->query($subSelect)->rowCount();
+
+        return ($result > 0? true : false);
     }
 
     /**
