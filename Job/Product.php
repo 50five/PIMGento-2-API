@@ -1670,11 +1670,13 @@ class Product extends Import
                                     'metadata' => $metadata,
                                 ];
 
-                                $connection->insertOnDuplicate(
-                                    $this->entitiesHelper->getTable('url_rewrite'),
-                                    $data,
-                                    array_keys($data)
-                                );
+                                if($data['store_id'] != 0){
+                                    $connection->insertOnDuplicate(
+                                        $this->entitiesHelper->getTable('url_rewrite'),
+                                        $data,
+                                        array_keys($data)
+                                    );
+                                }
 
                                 if ($isCategoryUsedInProductUrl && $path['category_id']) {
                                     /** @var int $rewriteId */
