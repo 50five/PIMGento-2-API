@@ -55,6 +55,11 @@
                     <label>Pagination size</label>
                     <comment>Must be a value between 1 and 100. Default value is 10.</comment>
                 </field>
+                <field id="is_single_channel" translate="label comment" type="select" sortOrder="85" showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Is single channel</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment>Single channel multiple websites</comment>
+                </field>
                 <field id="website_mapping" translate="label" type="text" sortOrder="90" showInDefault="1" showInWebsite="0" showInStore="0">
                     <label>Website Mapping</label>
                     <frontend_model>Pimgento\Api\Block\Adminhtml\System\Config\Form\Field\PublishedWebsite</frontend_model>
@@ -62,11 +67,12 @@
                     <comment>Match Magento website with Pim channel</comment>
                 </field>
                 <field id="published_website_attribute" translate="label comment" type="text" sortOrder="100" showInDefault="1"
-                       showInWebsite="0" showInStore="0">
+                       showInWebsite="0" showInStore="0" extends="is_single_channel">
                     <label>Published website attribute</label>
                     <comment>Attribute containing a multi select with your websites</comment>
                 </field>
-                <field id="published_website" translate="label" type="text" sortOrder="110" showInDefault="1" showInWebsite="0" showInStore="0">
+                <field id="published_website" translate="label" type="text" sortOrder="110" showInDefault="1" showInWebsite="0"
+                       showInStore="0" extends="is_single_channel">
                     <label>Published on website</label>
                     <frontend_model>Pimgento\Api\Block\Adminhtml\System\Config\Form\Field\Website</frontend_model>
                     <backend_model>Magento\Config\Model\Config\Backend\Serialized\ArraySerialized</backend_model>
