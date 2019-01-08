@@ -1593,6 +1593,7 @@ class Product extends Import
 
                                 $category = $this->categoryRepository->get($categoryId, $product->getStoreId());
 
+
                                 /** @var string $requestPath */
                                 $requestPath = $this->productUrlPathGenerator->getUrlPathWithSuffix(
                                     $product,
@@ -1617,9 +1618,13 @@ class Product extends Import
                                         $product->getStoreId(),
                                         $parent
                                     );
-                                    if (isset($paths[$requestPath])) {
+
+                                    if (isset($paths[$requestPath]) ||
+                                        preg_match("/^\//", $requestPath) ||
+                                        strpos($requestPath, '//') !== false) {
                                         continue;
                                     }
+
                                     $paths[$requestPath] = [
                                         'request_path' => $requestPath,
                                         'target_path'  => 'catalog/product/view/id/' . $product->getEntityId() . '/category/' . $parent->getId(),
