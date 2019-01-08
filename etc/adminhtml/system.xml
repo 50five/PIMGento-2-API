@@ -61,6 +61,17 @@
                     <backend_model>Magento\Config\Model\Config\Backend\Serialized\ArraySerialized</backend_model>
                     <comment>Match Magento website with Pim channel</comment>
                 </field>
+                <field id="published_website_attribute" translate="label comment" type="text" sortOrder="100" showInDefault="1"
+                       showInWebsite="0" showInStore="0">
+                    <label>Published website attribute</label>
+                    <comment>Attribute containing a multi select with your websites</comment>
+                </field>
+                <field id="published_website" translate="label" type="text" sortOrder="110" showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Published on website</label>
+                    <frontend_model>Pimgento\Api\Block\Adminhtml\System\Config\Form\Field\Website</frontend_model>
+                    <backend_model>Magento\Config\Model\Config\Backend\Serialized\ArraySerialized</backend_model>
+                    <comment>Match Magento website with Published on website</comment>
+                </field>
             </group>
             <group id="products_filters" translate="label" type="text" sortOrder="20" showInDefault="1"
                    showInWebsite="0" showInStore="0">

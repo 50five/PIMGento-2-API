@@ -42,6 +42,8 @@ class Config extends AbstractHelper
     const AKENEO_API_IS_ENTERPRISE = 'pimgento/akeneo_api/is_enterprise';
     const AKENEO_API_PAGINATION_SIZE = 'pimgento/akeneo_api/pagination_size';
     const AKENEO_API_WEBSITE_MAPPING = 'pimgento/akeneo_api/website_mapping';
+    const AKENEO_API_PUBLISHED_WEBSITE_MAPPING_ATTRIBUTE = 'pimgento/akeneo_api/published_website_attribute';
+    const AKENEO_API_PUBLISHED_WEBSITE_MAPPING = 'pimgento/akeneo_api/published_website';
     const PRODUCTS_FILTERS_MODE = 'pimgento/products_filters/mode';
     const PRODUCTS_FILTERS_COMPLETENESS_TYPE = 'pimgento/products_filters/completeness_type';
     const PRODUCTS_FILTERS_COMPLETENESS_VALUE = 'pimgento/products_filters/completeness_value';
@@ -60,7 +62,6 @@ class Config extends AbstractHelper
     const PRODUCT_ASSET_ENABLED = 'pimgento/product/asset_enabled';
     const PRODUCT_ASSET_GALLERY = 'pimgento/product/asset_gallery';
     const ATTRIBUTE_TYPES = 'pimgento/attribute/types';
-
     /**
      * @var int PAGINATION_SIZE_DEFAULT_VALUE
      */
@@ -310,6 +311,26 @@ class Config extends AbstractHelper
     public function getWebsiteMapping()
     {
         return $this->scopeConfig->getValue(self::AKENEO_API_WEBSITE_MAPPING);
+    }
+
+    /**
+     * Retrieve website mapping attribute
+     *
+     * @return string
+     */
+    public function getPublishedWebsiteMappingAttribute()
+    {
+        return $this->scopeConfig->getValue(self::AKENEO_API_PUBLISHED_WEBSITE_MAPPING_ATTRIBUTE);
+    }
+
+    /**
+     * Retrieve website mapping
+     *
+     * @return string
+     */
+    public function getPublishedWebsiteMapping()
+    {
+        return $this->scopeConfig->getValue(self::AKENEO_API_PUBLISHED_WEBSITE_MAPPING);
     }
 
     /**

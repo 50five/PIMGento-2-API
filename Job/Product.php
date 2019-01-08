@@ -21,6 +21,7 @@ use Magento\CatalogUrlRewrite\Model\ProductUrlPathGenerator;
 use Magento\CatalogUrlRewrite\Model\ProductUrlRewriteGenerator;
 use Magento\Staging\Model\VersionManager;
 use Magento\Catalog\Model\Product\Attribute\Backend\Media\ImageEntryConverter;
+use Magento\Store\Model\StoreManager;
 use Pimgento\Api\Helper\Authenticator;
 use Pimgento\Api\Helper\Config as ConfigHelper;
 use Pimgento\Api\Helper\Output as OutputHelper;
@@ -130,6 +131,12 @@ class Product extends Import
     protected $storeHelper;
 
     /**
+     * This variable contains the magento store manager
+     * @var StoreManager
+     */
+    protected $storeManager;
+
+    /**
      * Product constructor.
      *
      * @param OutputHelper $outputHelper
@@ -159,6 +166,7 @@ class Product extends Import
         ProductUrlPathGenerator $productUrlPathGenerator,
         TypeListInterface $cacheTypeList,
         StoreHelper $storeHelper,
+        StoreManager $storeManager,
         array $data = []
     ) {
         parent::__construct($outputHelper, $eventManager, $authenticator, $data);
@@ -172,6 +180,7 @@ class Product extends Import
         $this->cacheTypeList           = $cacheTypeList;
         $this->storeHelper             = $storeHelper;
         $this->productUrlPathGenerator = $productUrlPathGenerator;
+        $this->storeManager            = $storeManager;
     }
 
     /**
@@ -1050,46 +1059,85 @@ class Product extends Import
     }
 
     /**
-     * Set website
-     *
-     * @return void
-     * @throws LocalizedException
+     * disable setWebsites function we use published on website
      */
     public function setWebsites()
     {
-        /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
         $tmpTable = $this->entitiesHelper->getTableName($this->getCode());
-        /** @var array $websites */
-        $websites = $this->storeHelper->getStores('website_id');
 
-        /**
-         * @var int $websiteId
-         * @var array $affected
-         */
-        foreach ($websites as $websiteId => $affected) {
-            if ($websiteId == 0) {
-                continue;
+        $mappedAttribute = $this->configHelper->getPublishedWebsiteMappingAttribute();
+
+        // enable websites based on published website attribute
+        if($mappedAttribute !== null){
+            $products = $connection->query(
+                $connection->select()
+                ->from(
+                    $tmpTable
+                )
+            )->fetchAll();
+
+            $sites = json_decode($this->configHelper->getPublishedWebsiteMapping(), true);
+
+            $magentoStores = $this->storeManager->getWebsites();
+            $deleted = [];
+            $connection->query('SET FOREIGN_KEY_CHECKS = 0');
+            foreach ($products as $product) {
+                if (!in_array($product['_entity_id'], $deleted)) {
+                    $connection->delete("catalog_product_website", 'product_id = ' . $product['_entity_id']);
+                    $deleted[] = $product['_entity_id'];
+                }
+                $publishedSites = explode(',', $product[$mappedAttribute]);
+
+                foreach ($publishedSites as $publishedSite) {
+                    foreach ($sites as $site) {
+                        if ($publishedSite == $site['channel']) {
+                            foreach ($magentoStores as $magentoStore) {
+                                if ($magentoStore->getCode() == $site['website']) {
+                                    $connection->insertOnDuplicate("catalog_product_website", [
+                                        'website_id' => $magentoStore->getId(),
+                                        'product_id' => $product['_entity_id']
+                                    ], ['website_id', 'product_id']);
+                                }
+
+                            }
+                        }
+                    }
+                }
             }
+            $connection->query('SET FOREIGN_KEY_CHECKS = 1');
+        } else {
+            // enable all websites
+            /** @var array $websites */
+            $websites = $this->storeHelper->getStores('website_id');
+            /**
+             * @var int $websiteId
+             * @var array $affected
+             */
+            foreach ($websites as $websiteId => $affected) {
+                if ($websiteId == 0) {
+                    continue;
+                }
 
-            /** @var Select $select */
-            $select = $connection->select()->from(
-                    $tmpTable,
+                /** @var Select $select */
+                $select = $connection->select()->from(
+                    $tmpProductTable,
                     [
                         'product_id' => '_entity_id',
                         'website_id' => new Expr($websiteId),
                     ]
                 );
 
-            $connection->query(
-                $connection->insertFromSelect(
-                    $select,
-                    $this->entitiesHelper->getTable('catalog_product_website'),
-                    ['product_id', 'website_id'],
-                    AdapterInterface::INSERT_ON_DUPLICATE
-                )
-            );
+                $connection->query(
+                    $connection->insertFromSelect(
+                        $select,
+                        $this->entitiesHelper->getTable('catalog_product_website'),
+                        ['product_id', 'website_id'],
+                        AdapterInterface::INSERT_ON_DUPLICATE
+                    )
+                );
+            }
         }
     }
 
