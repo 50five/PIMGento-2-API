@@ -42,6 +42,7 @@ class Config extends AbstractHelper
     const AKENEO_API_IS_ENTERPRISE = 'pimgento/akeneo_api/is_enterprise';
     const AKENEO_API_PAGINATION_SIZE = 'pimgento/akeneo_api/pagination_size';
     const AKENEO_API_WEBSITE_MAPPING = 'pimgento/akeneo_api/website_mapping';
+    const AKENEO_API_IS_ATTRIBUTE_MAPPING = 'pimgento/akeneo_api/is_attribute_mapping';
     const AKENEO_API_PUBLISHED_WEBSITE_MAPPING_ATTRIBUTE = 'pimgento/akeneo_api/published_website_attribute';
     const AKENEO_API_PUBLISHED_WEBSITE_MAPPING = 'pimgento/akeneo_api/published_website';
     const PRODUCTS_FILTERS_MODE = 'pimgento/products_filters/mode';

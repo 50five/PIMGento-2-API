@@ -1067,10 +1067,11 @@ class Product extends Import
         /** @var string $tmpTable */
         $tmpTable = $this->entitiesHelper->getTableName($this->getCode());
 
+        $isAttributeMapping = $this->configHelper->getIsAttributeMapping();
         $mappedAttribute = $this->configHelper->getPublishedWebsiteMappingAttribute();
 
         // enable websites based on published website attribute
-        if($mappedAttribute !== null){
+        if($isAttributeMapping == 1 && $mappedAttribute !== null){
             $products = $connection->query(
                 $connection->select()
                 ->from(
