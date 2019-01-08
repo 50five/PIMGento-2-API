@@ -57,7 +57,7 @@
                 </field>
                 <field id="website_mapping" translate="label" type="text" sortOrder="90" showInDefault="1" showInWebsite="0" showInStore="0">
                     <label>Website Mapping</label>
-                    <frontend_model>Pimgento\Api\Block\Adminhtml\System\Config\Form\Field\Website</frontend_model>
+                    <frontend_model>Pimgento\Api\Block\Adminhtml\System\Config\Form\Field\PublishedWebsite</frontend_model>
                     <backend_model>Magento\Config\Model\Config\Backend\Serialized\ArraySerialized</backend_model>
                     <comment>Match Magento website with Pim channel</comment>
                 </field>

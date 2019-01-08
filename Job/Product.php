@@ -1122,7 +1122,7 @@ class Product extends Import
 
                 /** @var Select $select */
                 $select = $connection->select()->from(
-                    $tmpProductTable,
+                    $tmpTable,
                     [
                         'product_id' => '_entity_id',
                         'website_id' => new Expr($websiteId),

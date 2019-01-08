@@ -63,3 +63,14 @@ Note that if you judge your feature can be used by others, and if you respect th
 * Set Pim to "akeneo_product_name_field"
 * Set Magento to "url_key"
 * Save
+
+### Q: How to published products to specific websites website
+**A**: Add published on website to Akeneo as a attribute and map the website codes to magento.
+* Go to Akeneo and create a global 'multi select' attribute called for example "published_on_website" add for every website an option to it.
+* Map products in Akeneo to the correct websites
+* Go to Store -> Configuration -> Catalog -> PIMGento2
+* Add attribute code to field "Published website attribute"
+* Map the options created in Akeneo to "Published on website"
+* Save
+* Run imports: family, attribute, option, product
+* Products are now mapped to the correct website.
