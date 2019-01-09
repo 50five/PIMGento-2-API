@@ -17,6 +17,9 @@ use Magento\Staging\Model\VersionManager;
 use Magento\CatalogUrlRewrite\Model\CategoryUrlPathGenerator;
 use Magento\CatalogUrlRewrite\Model\CategoryUrlRewriteGenerator;
 use Zend_Db_Expr as Expr;
+use Magento\Catalog\Model\CategoryRepository;
+use Magento\Catalog\Model\ResourceModel\Category\Collection as CategoryCollection;
+use Magento\Catalog\Model\ResourceModel\Category\CollectionFactory as CategoryCollectionFactory;
 
 /**
  * Class Category
@@ -84,8 +87,19 @@ class Category extends Import
     protected $categoryUrlPathGenerator;
 
     /**
-     * Category constructor
-     *
+     * Category collection
+     * @var CategoryCollectionFactory
+     */
+    protected $categoryCollectionFactory;
+
+    /**
+     * Category model repository
+     * @var CategoryRepository
+     */
+    protected $categoryRepository;
+
+    /**
+     * Category constructor.
      * @param OutputHelper $outputHelper
      * @param ManagerInterface $eventManager
      * @param Authenticator $authenticator
@@ -95,6 +109,8 @@ class Category extends Import
      * @param ConfigHelper $configHelper
      * @param CategoryModel $categoryModel
      * @param CategoryUrlPathGenerator $categoryUrlPathGenerator
+     * @param CategoryCollectionFactory $categoryCollectionFactory
+     * @param CategoryRepository $categoryRepository
      * @param array $data
      */
     public function __construct(
@@ -107,6 +123,8 @@ class Category extends Import
         ConfigHelper $configHelper,
         CategoryModel $categoryModel,
         CategoryUrlPathGenerator $categoryUrlPathGenerator,
+        CategoryCollectionFactory $categoryCollectionFactory,
+        CategoryRepository $categoryRepository,
         array $data = []
     ) {
         parent::__construct($outputHelper, $eventManager, $authenticator, $data);
@@ -117,6 +135,8 @@ class Category extends Import
         $this->configHelper   = $configHelper;
         $this->categoryModel  = $categoryModel;
         $this->categoryUrlPathGenerator = $categoryUrlPathGenerator;
+        $this->categoryCollectionFactory = $categoryCollectionFactory;
+        $this->categoryRepository = $categoryRepository;
     }
 
     /**
@@ -544,6 +564,19 @@ class Category extends Import
                 if (!$store['store_id']) {
                     continue;
                 }
+
+                /** @var CategoryModel $rootCategory */
+                $rootCategory = $this->categoryRepository->get($store['root_category_id'],$store['store_id']);
+
+                /** @var categoryCollection $categories */
+                $categories = $this->categoryCollectionFactory->create()
+                    ->addAttributeToSelect('*')
+                    ->addPathsFilter($rootCategory->getPath());
+                $storeCategories = [];
+                foreach ($categories as $category){
+                    $storeCategories[] = $category->getId();
+                }
+
                 /** @var \Magento\Framework\DB\Select $select */
                 $select = $connection->select()
                     ->from(
@@ -563,6 +596,11 @@ class Category extends Import
 
                 /** @var array $row */
                 while (($row = $query->fetch())) {
+
+                    if(in_array($row['entity_id'], $storeCategories) == false){
+                        continue;
+                    }
+
                     /** @var CategoryModel $category */
                     $category = $this->categoryModel;
                     $category->setData($row);

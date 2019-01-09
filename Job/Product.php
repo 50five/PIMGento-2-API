@@ -1520,6 +1520,19 @@ class Product extends Import
                 if (!$store['store_id']) {
                     continue;
                 }
+
+                /** @var CategoryModel $rootCategory */
+                $rootCategory = $this->categoryRepository->get($store['root_category_id'],$store['store_id']);
+
+                /** @var categoryCollection $categories */
+                $categories = $this->categoryCollectionFactory->create()
+                    ->addAttributeToSelect('*')
+                    ->addPathsFilter($rootCategory->getPath());
+                $storeCategories = [];
+                foreach ($categories as $category){
+                    $storeCategories[] = $category->getId();
+                }
+
                 /** @var \Magento\Catalog\Model\Product $product */
                 $products = $this->productCollection
                     ->addFieldToFilter('entity_id', array('in'=> $filter))
@@ -1591,8 +1604,11 @@ class Product extends Import
                             /** @var CategoryModel $category */
                             foreach ($categories as $categoryId) {
 
-                                $category = $this->categoryRepository->get($categoryId, $product->getStoreId());
+                                if(in_array($categoryId, $storeCategories) == false) {
+                                    continue;
+                                }
 
+                                $category = $this->categoryRepository->get($categoryId, $product->getStoreId());
 
                                 /** @var string $requestPath */
                                 $requestPath = $this->productUrlPathGenerator->getUrlPathWithSuffix(

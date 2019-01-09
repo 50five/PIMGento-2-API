@@ -62,11 +62,9 @@ class Store extends AbstractHelper
     }
 
     /**
-     * Retrieve all stores information
-     *
-     * @param string|array $arrayKey
-     *
+     * @param string $arrayKey
      * @return array
+     * @throws \Magento\Framework\Exception\LocalizedException
      */
     public function getStores($arrayKey = 'store_id')
     {
@@ -148,6 +146,7 @@ class Store extends AbstractHelper
                 'channel_code' => $channel,
                 'lang'         => $this->configHelper->getDefaultLocale($store->getId()),
                 'currency'     => $this->configHelper->getDefaultCurrency($store->getId()),
+                'root_category_id' => $store->getRootCategoryId(),
             ];
         }
 
