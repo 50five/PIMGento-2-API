@@ -315,6 +315,16 @@ class Config extends AbstractHelper
     }
 
     /**
+     * Is website mapping with attribute active
+     *
+     * @return int
+     */
+    public function getIsAttributeMapping()
+    {
+        return $this->scopeConfig->getValue(self::AKENEO_API_IS_ATTRIBUTE_MAPPING);
+    }
+
+    /**
      * Retrieve website mapping attribute
      *
      * @return string
