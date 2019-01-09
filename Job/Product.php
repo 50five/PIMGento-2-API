@@ -36,6 +36,9 @@ use Zend_Db_Statement_Pdo;
 use Magento\Eav\Api\Data\AttributeInterface;
 use Magento\Eav\Model\Config as EavConfig;
 use Magento\Catalog\Model\ResourceModel\Product\Collection as ProductCollection;
+use Magento\Catalog\Model\CategoryRepository;
+use Magento\Catalog\Model\ResourceModel\Category\Collection as CategoryCollection;
+use Magento\Catalog\Model\ResourceModel\Category\CollectionFactory as CategoryCollectionFactory;
 
 /**
  * Class Product
@@ -169,13 +172,19 @@ class Product extends Import
     protected $productCollection;
 
     /**
-     * @var CategoryRepositoryInterface
+     * Category collection
+     * @var CategoryCollectionFactory
+     */
+    protected $categoryCollectionFactory;
+
+    /**
+     * Category model repository
+     * @var CategoryRepository
      */
     protected $categoryRepository;
 
     /**
      * Product constructor.
-     *
      * @param OutputHelper $outputHelper
      * @param ManagerInterface $eventManager
      * @param Authenticator $authenticator
@@ -191,6 +200,8 @@ class Product extends Import
      * @param StoreHelper $storeHelper
      * @param EavConfig $eavConfig
      * @param CustomMysql $customMysql
+     * @param CategoryCollectionFactory $categoryCollectionFactory
+     * @param CategoryRepository $categoryRepository
      * @param array $data
      */
     public function __construct(
@@ -209,7 +220,8 @@ class Product extends Import
         StoreHelper $storeHelper,
         EavConfig $eavConfig,
         CustomMysql $customMysql,
-        CategoryRepositoryInterface $categoryRepository,
+        CategoryCollectionFactory $categoryCollectionFactory,
+        CategoryRepository $categoryRepository,
         array $data = []
     ) {
         parent::__construct($outputHelper, $eventManager, $authenticator, $data);
@@ -226,6 +238,7 @@ class Product extends Import
         $this->eavConfig = $eavConfig;
         $this->customMysql = $customMysql;
         $this->productCollection = $productCollection;
+        $this->categoryCollectionFactory = $categoryCollectionFactory;
         $this->categoryRepository = $categoryRepository;
     }
 
