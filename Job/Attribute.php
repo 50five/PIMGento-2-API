@@ -12,6 +12,7 @@ use Magento\Framework\App\Cache\TypeListInterface;
 use Magento\Framework\DB\Select;
 use Magento\Framework\Event\ManagerInterface;
 use Magento\Eav\Model\Config;
+use Magento\Framework\Filesystem\DirectoryList;
 use Pimgento\Api\Helper\Authenticator;
 use Pimgento\Api\Helper\Config as ConfigHelper;
 use Pimgento\Api\Helper\Import\Attribute as AttributeHelper;
@@ -44,6 +45,7 @@ class Attribute extends Import
      * @var string $name
      */
     protected $name = 'Attribute';
+
     /**
      * This variable contains an EntitiesHelper
      *
@@ -88,8 +90,12 @@ class Attribute extends Import
     protected $eavSetup;
 
     /**
-     * Attribute constructor
-     *
+     * @var DirectoryList
+     */
+    protected $dir;
+
+    /**
+     * Attribute constructor.
      * @param OutputHelper $outputHelper
      * @param ManagerInterface $eventManager
      * @param Authenticator $authenticator
@@ -100,6 +106,7 @@ class Attribute extends Import
      * @param TypeListInterface $cacheTypeList
      * @param StoreHelper $storeHelper
      * @param EavSetup $eavSetup
+     * @param DirectoryList $dir
      * @param array $data
      */
     public function __construct(
@@ -113,6 +120,7 @@ class Attribute extends Import
         TypeListInterface $cacheTypeList,
         StoreHelper $storeHelper,
         EavSetup $eavSetup,
+        DirectoryList $dir,
         array $data = []
     ) {
         parent::__construct($outputHelper, $eventManager, $authenticator, $data);
@@ -124,6 +132,7 @@ class Attribute extends Import
         $this->cacheTypeList   = $cacheTypeList;
         $this->storeHelper     = $storeHelper;
         $this->eavSetup        = $eavSetup;
+        $this->dir             = $dir;
     }
 
     /**
@@ -145,6 +154,20 @@ class Attribute extends Import
         }
         $attribute = reset($attribute);
         $this->entitiesHelper->createTmpTableFromApi($attribute, $this->getCode());
+
+
+        /** @var PageInterface $attributes */
+        $attributeGroups = $this->akeneoClient->getAttributeGroupApi()->listPerPage(1);
+        /** @var array $attribute */
+        $attributeGroup = $attributeGroups->getItems();
+        if (empty($attributeGroup)) {
+            $this->setMessage(__('No results from Akeneo'));
+            $this->stop(1);
+
+            return;
+        }
+        $attributeGroup = reset($attributeGroup);
+        $this->entitiesHelper->createTmpTableFromApi($attributeGroup, 'attribute_group');
     }
 
     /**
@@ -152,7 +175,7 @@ class Attribute extends Import
      *
      * @return void
      */
-    public function insertData()
+    public function insertAttributeData()
     {
         /** @var string|int $paginationSize */
         $paginationSize = $this->configHelper->getPanigationSize();
@@ -169,7 +192,34 @@ class Attribute extends Import
         $index++;
 
         $this->setMessage(
-            __('%1 line(s) found', $index)
+            __('%1 attribute(s) found', $index)
+        );
+    }
+
+    /**
+     * Insert data into temporary table
+     *
+     * @return void
+     */
+    public function insertAttributeGroupData()
+    {
+        /** @var string|int $paginationSize */
+        $paginationSize = $this->configHelper->getPanigationSize();
+
+        /** @var ResourceCursorInterface $attributes */
+        $attributeGroups = $this->akeneoClient->getAttributeGroupApi()->all($paginationSize);
+
+        /**
+         * @var int $index
+         * @var array $attribute
+         */
+        foreach ($attributeGroups as $index => $attributeGroup) {
+            $this->entitiesHelper->insertDataFromApi($attributeGroup, 'attribute_group');
+        }
+        $index++;
+
+        $this->setMessage(
+            __('%1 attribute group(s) found', $index)
         );
     }
 
@@ -306,6 +356,7 @@ class Attribute extends Import
         $query = $connection->query($import);
 
         while (($row = $query->fetch())) {
+
             /* Insert base data (ignore if already exists) */
             /** @var string[] $values */
             $values = [
@@ -480,6 +531,105 @@ class Attribute extends Import
                         }
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * Add group labels to translation files
+     * @throws \Magento\Framework\Exception\LocalizedException
+     * @throws \Zend_Db_Statement_Exception
+     */
+    public function addGroupLabels()
+    {
+        /** @var AdapterInterface $connection */
+        $connection = $this->entitiesHelper->getConnection();
+        /** @var string $tmpTable */
+        $tmpTable = $this->entitiesHelper->getTableName('attribute_group');
+        /** @var Select $import */
+        $import = $connection->select()->from($tmpTable);
+        /** @var \Zend_Db_Statement_Interface $query */
+        $query = $connection->query($import);
+
+        $this->emptyDictionaryFiles();
+
+        $stores = $this->storeHelper->getAllStores();
+        while (($row = $query->fetch())) {
+            foreach($stores as $key => $value){
+                if(isset($row['labels-'.$key])){
+
+                    $dictionaryFile = $this->getDictionaryFile($key);
+
+                    $fp = fopen($dictionaryFile, 'a');
+                    fwrite($fp, '"'.$row['code'].'","'.str_replace('CNET – ','', $row['labels-'.$key]).'"' . PHP_EOL);
+                    fclose($fp);
+                }
+            }
+        }
+    }
+
+    /**
+     * Get dictionary file if it does not exist create it
+     * @param string $language
+     * @return string
+     */
+    private function getDictionaryFile($language){
+
+        $languageDirectory = $this->dir->getRoot()."/app/i18n/pimgento/";
+
+        if(!file_exists($languageDirectory)) {
+            mkdir($languageDirectory);
+        }
+
+        $languageFolder = $languageDirectory . strtolower($language);
+
+        if(!file_exists($languageFolder)) {
+            mkdir($languageFolder);
+            touch($languageFolder . '/dictionary.csv');
+            $fp = fopen($languageFolder . '/language.xml', 'w');
+            fwrite($fp, '<?xml version="1.0"?>
+<language xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:App/Language/package.xsd">
+    <code>'.$language.'</code>
+    <vendor>pimgento</vendor>
+    <package>'.strtolower($language).'</package>
+    <sort_order>1</sort_order>
+</language>
+');
+            fclose($fp);
+            $fp = fopen($languageFolder . '/registration.php', 'w');
+            fwrite($fp, '<?php
+\Magento\Framework\Component\ComponentRegistrar::register(
+    \Magento\Framework\Component\ComponentRegistrar::LANGUAGE,
+    \'pimgento_'.strtolower($language).'\',
+    __DIR__
+);
+');
+            fclose($fp);
+        }
+
+        return $languageFolder . '/dictionary.csv';
+    }
+
+
+    /**
+     * Clear out dictionary files so they can be re filled
+     */
+    private function emptyDictionaryFiles(){
+
+        $languageDirectory = $this->dir->getRoot()."/app/i18n/pimgento/";
+
+        $folders = opendir($languageDirectory);
+
+        while (false !== ($file = readdir($folders))) {
+            if ($file == '.' || $file == '..') {
+                continue;
+            }
+            $dictionaryFile = $languageDirectory . $file . '/dictionary.csv';
+
+            if(file_exists($dictionaryFile)) {
+                $fp = fopen($dictionaryFile, 'w');
+                ftruncate($fp,0);
+                fclose($fp);
             }
         }
     }

@@ -167,30 +167,38 @@
                         <item name="comment" xsi:type="string">Create temporary table</item>
                     </item>
                     <item name="2" xsi:type="array">
-                        <item name="method" xsi:type="string">insertData</item>
-                        <item name="comment" xsi:type="string">Fill temporary table</item>
+                        <item name="method" xsi:type="string">insertAttributeData</item>
+                        <item name="comment" xsi:type="string">Fill temporary attribute table</item>
                     </item>
                     <item name="3" xsi:type="array">
+                        <item name="method" xsi:type="string">insertAttributeGroupData</item>
+                        <item name="comment" xsi:type="string">Fill temporary attribute group table</item>
+                    </item>
+                    <item name="4" xsi:type="array">
                         <item name="method" xsi:type="string">matchEntities</item>
                         <item name="comment" xsi:type="string">Match code with Magento ID</item>
                     </item>
-                    <item name="4" xsi:type="array">
+                    <item name="5" xsi:type="array">
                         <item name="method" xsi:type="string">matchType</item>
                         <item name="comment" xsi:type="string">Match type</item>
                     </item>
-                    <item name="5" xsi:type="array">
+                    <item name="6" xsi:type="array">
                         <item name="method" xsi:type="string">matchFamily</item>
                         <item name="comment" xsi:type="string">Match family</item>
                     </item>
-                    <item name="6" xsi:type="array">
+                    <item name="7" xsi:type="array">
                         <item name="method" xsi:type="string">addAttributes</item>
                         <item name="comment" xsi:type="string">Add or update attributes</item>
                     </item>
-                    <item name="7" xsi:type="array">
+                    <item name="8" xsi:type="array">
+                        <item name="method" xsi:type="string">addGroupLabels</item>
+                        <item name="comment" xsi:type="string">Add or update group labels</item>
+                    </item>
+                    <item name="9" xsi:type="array">
                         <item name="method" xsi:type="string">dropTable</item>
                         <item name="comment" xsi:type="string">Drop temporary table</item>
                     </item>
-                    <item name="8" xsi:type="array">
+                    <item name="10" xsi:type="array">
                         <item name="method" xsi:type="string">cleanCache</item>
                         <item name="comment" xsi:type="string">Clean cache</item>
                     </item>
