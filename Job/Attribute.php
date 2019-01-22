@@ -478,12 +478,12 @@ class Attribute extends Import
                         $this->eavSetup->addAttributeGroup(
                             $this->getEntityTypeId(),
                             $attributeSetId,
-                            ucfirst($row['group'])
+                            $row['group']
                         );
                         $this->eavSetup->addAttributeToSet(
                             $this->getEntityTypeId(),
                             $attributeSetId,
-                            ucfirst($row['group']),
+                            $row['group'],
                             $row['_entity_id']
                         );
                     }
