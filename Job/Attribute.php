@@ -618,6 +618,10 @@ class Attribute extends Import
 
         $languageDirectory = $this->dir->getRoot()."/app/i18n/pimgento/";
 
+        if(!file_exists($languageDirectory)){
+            return;
+        }
+
         $folders = opendir($languageDirectory);
 
         while (false !== ($file = readdir($folders))) {
