@@ -5,6 +5,7 @@ namespace Pimgento\Api\Job;
 use Akeneo\Pim\ApiClient\Pagination\PageInterface;
 use Akeneo\Pim\ApiClient\Pagination\ResourceCursorInterface;
 use Magento\Catalog\Api\Data\ProductAttributeInterface;
+use Magento\Eav\Api\AttributeManagementInterface;
 use Magento\Eav\Model\Entity\Attribute\ScopedAttributeInterface;
 use Magento\Eav\Setup\EavSetup;
 use Magento\Framework\DB\Adapter\AdapterInterface;
@@ -95,6 +96,12 @@ class Attribute extends Import
     protected $dir;
 
     /**
+     * Attribute management interface
+     * @var AttributeManagementInterface
+     */
+    protected $attributeManagement;
+
+    /**
      * Attribute constructor.
      * @param OutputHelper $outputHelper
      * @param ManagerInterface $eventManager
@@ -107,6 +114,7 @@ class Attribute extends Import
      * @param StoreHelper $storeHelper
      * @param EavSetup $eavSetup
      * @param DirectoryList $dir
+     * @param AttributeManagementInterface $attributeManagement
      * @param array $data
      */
     public function __construct(
@@ -121,6 +129,7 @@ class Attribute extends Import
         StoreHelper $storeHelper,
         EavSetup $eavSetup,
         DirectoryList $dir,
+        AttributeManagementInterface $attributeManagement,
         array $data = []
     ) {
         parent::__construct($outputHelper, $eventManager, $authenticator, $data);
@@ -133,6 +142,7 @@ class Attribute extends Import
         $this->storeHelper     = $storeHelper;
         $this->eavSetup        = $eavSetup;
         $this->dir             = $dir;
+        $this->attributeManagement = $attributeManagement;
     }
 
     /**
@@ -355,6 +365,12 @@ class Attribute extends Import
         /** @var \Zend_Db_Statement_Interface $query */
         $query = $connection->query($import);
 
+        $defaultAttributes = $this->attributeManagement->getAttributes(4,4);
+        $ignoreAttributes = [];
+        foreach($defaultAttributes as $defaultAttribute) {
+            $ignoreAttributes[] = $defaultAttribute->getAttributeCode();
+        }
+
         while (($row = $query->fetch())) {
 
             /* Insert base data (ignore if already exists) */
@@ -475,11 +491,16 @@ class Attribute extends Import
 
                 foreach ($attributeSetIds as $attributeSetId) {
                     if (is_numeric($attributeSetId)) {
+                        if(in_array($row['code'],$ignoreAttributes)){
+                            continue;
+                        }
+
                         $this->eavSetup->addAttributeGroup(
                             $this->getEntityTypeId(),
                             $attributeSetId,
                             $row['group']
                         );
+
                         $this->eavSetup->addAttributeToSet(
                             $this->getEntityTypeId(),
                             $attributeSetId,
