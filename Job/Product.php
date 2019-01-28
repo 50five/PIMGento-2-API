@@ -986,6 +986,43 @@ class Product extends Import
                     $data);
             }
         }
+
+        // set default price for default store based on the first store view
+        $productsQuery = $connection->select()
+            ->from('catalog_product_entity')
+            ->where('type_id = "simple"');
+        $products = $connection->query($productsQuery)->fetchAll();
+        $defaultPrice = [];
+        foreach($products as $product){
+            $priceQuery = $connection->select()
+                ->from('catalog_product_entity_decimal')
+                ->where('row_id = "'.$product['row_id'].'" and attribute_id = 231 and store_id != 0')
+                ->order('store_id ASC');
+            $price = $connection->query($priceQuery)->fetch();
+            if($price['store_id'] != 0){
+
+                $checkPriceQuery = $connection->select()
+                    ->from('catalog_product_entity_decimal')
+                    ->where('row_id = "'.$product['row_id'].'" and attribute_id = 231 and store_id = 0');
+                $checkPrice = $connection->query($checkPriceQuery)->fetch();
+
+                if($checkPrice['value'] != $price['value']){
+                    $defaultPrice[] = [
+                        'attribute_id' => $price['attribute_id'],
+                        'store_id' => "0",
+                        'row_id' => $price['row_id'],
+                        'value' => $price['value']
+                    ];
+                }
+            }
+        }
+
+        if(count($defaultPrice) >= 1){
+            $this->customMysql->insertMultiple(
+                $connection,
+                $this->entitiesHelper->getTable( 'catalog_product_entity_decimal'),
+                $defaultPrice);
+        }
     }
 
     /**
