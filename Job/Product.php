@@ -1587,6 +1587,7 @@ class Product extends Import
                 $products = $this->productCollection
                     ->addFieldToFilter('entity_id', array('in'=> $filter))
                     ->addStoreFilter($store['store_id']);
+
                 foreach($products as $product) {
 
                     $urlKeyData = $connection->fetchRow(
@@ -1601,8 +1602,7 @@ class Product extends Import
 
                     if(!empty($urlKeyData['value-'.$local])){
                         $product->setUrlKey($urlKeyData['value-' . $local]);
-                        $product->setStoreId($affected[0]['store_id']);
-
+                        $product->setStoreId($store['store_id']);
                         $urlPath = $this->productUrlPathGenerator->getUrlPath($product);
                         if (!$urlPath) {
                             continue;
