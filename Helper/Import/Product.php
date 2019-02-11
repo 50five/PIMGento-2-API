@@ -35,7 +35,7 @@ class Product extends Entities
      *
      * @return array
      */
-    protected function getColumnsFromResult(array $result, array $keys = [])
+    public function getColumnsFromResult(array $result, array $keys = [])
     {
         /** @var array $columns */
         $columns = [];
@@ -102,7 +102,7 @@ class Product extends Entities
      *
      * @return array
      */
-    private function formatValues(array $values)
+    public function formatValues(array $values)
     {
         /** @var array $columns */
         $columns = [];
@@ -114,23 +114,23 @@ class Product extends Entities
             /** @var array $attributeValue */
             foreach ($value as $attributeValue) {
                 /** @var string $key */
-                $key = $this->getKey($attribute, $attributeValue);
+                $key = $this->getValueKey($attributeValue);
 
                 // Attribute is a text, textarea, number, date, yes/no, simpleselect, file
                 if (!is_array($attributeValue['data'])) {
-                    $columns[$key] = $attributeValue['data'];
+                    $columns[$attribute][$key] = $attributeValue['data'];
 
                     continue;
                 }
                 // Attribute is a metric
                 if (array_key_exists('amount', $attributeValue['data'])) {
-                    $columns[$key] = $attributeValue['data']['amount'];
+                    $columns[$attribute][$key] = $attributeValue['data']['amount'];
 
                     continue;
                 }
                 // Attribute is a multiselect
                 if (isset($attributeValue['data'][0]) && (!is_array($attributeValue['data'][0]) || !array_key_exists('amount', $attributeValue['data'][0]))) {
-                    $columns[$key] = join(',', $attributeValue['data']);
+                    $columns[$attribute][$key] = join(',', $attributeValue['data']);
 
                     continue;
                 }
@@ -139,7 +139,7 @@ class Product extends Entities
                 foreach ($attributeValue['data'] as $price) {
                     /** @var string $priceKey */
                     $priceKey           = $key . '-' . $price['currency'];
-                    $columns[$priceKey] = $price['amount'];
+                    $columns[$attribute][$priceKey] = $price['amount'];
                 }
             }
         }
@@ -154,7 +154,7 @@ class Product extends Entities
      *
      * @return array
      */
-    private function formatAssociations(array $values)
+    public function formatAssociations(array $values)
     {
         /** @var array $associations */
         $associations = [];
@@ -191,7 +191,7 @@ class Product extends Entities
      *
      * @return string
      */
-    private function getKey($attribute, array $attributeValue)
+    public function getKey($attribute, array $attributeValue)
     {
         /** @var string $key */
         $key = $attribute;
@@ -201,6 +201,29 @@ class Product extends Entities
             $key = join('-', [$attribute, $attributeValue['locale']]);
         } elseif (isset($attributeValue['scope'])) {
             $key = join('-', [$attribute, $attributeValue['scope']]);
+        }
+
+        return (string)$key;
+    }
+
+    /**
+     * Get attribute key to be inserted as a column
+     *
+     * @param string $attribute
+     * @param array  $attributeValue
+     *
+     * @return string
+     */
+    public function getValueKey(array $attributeValue)
+    {
+        /** @var string $key */
+        $key = 'value';
+        if (isset($attributeValue['locale']) && isset($attributeValue['scope'])) {
+            $key = join('-', ['value', $attributeValue['locale'], $attributeValue['scope']]);
+        } elseif (isset($attributeValue['locale'])) {
+            $key = join('-', ['value', $attributeValue['locale']]);
+        } elseif (isset($attributeValue['scope'])) {
+            $key = join('-', ['value', $attributeValue['scope']]);
         }
 
         return (string)$key;

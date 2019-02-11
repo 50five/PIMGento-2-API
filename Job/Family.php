@@ -5,9 +5,12 @@ namespace Pimgento\Api\Job;
 use Akeneo\Pim\ApiClient\Pagination\PageInterface;
 use Akeneo\Pim\ApiClient\Pagination\ResourceCursorInterface;
 use Magento\Catalog\Api\Data\ProductAttributeInterface;
+use Magento\Eav\Api\AttributeManagementInterface;
+use Magento\Eav\Api\Data\AttributeSetInterface;
 use Magento\Eav\Model\Config;
 use Magento\Eav\Model\Entity\Attribute\Set;
 use Magento\Eav\Model\Entity\Attribute\SetFactory;
+use Magento\Eav\Setup\EavSetup;
 use Magento\Framework\App\Cache\TypeListInterface;
 use Magento\Framework\DB\Adapter\AdapterInterface;
 use Magento\Framework\DB\Select;
@@ -74,8 +77,19 @@ class Family extends Import
     protected $eavConfig;
 
     /**
-     * Family constructor
-     *
+     * Attribute management interface
+     * @var AttributeManagementInterface
+     */
+    protected $attributeManagement;
+
+    /**
+     * Eav setup
+     * @var EavSetup $eavSetup
+     */
+    protected $eavSetup;
+
+    /**
+     * Family constructor.
      * @param Entities $entitiesHelper
      * @param ConfigHelper $configHelper
      * @param OutputHelper $outputHelper
@@ -84,6 +98,8 @@ class Family extends Import
      * @param SetFactory $attributeSetFactory
      * @param TypeListInterface $cacheTypeList
      * @param Config $eavConfig
+     * @param AttributeManagementInterface $attributeManagement
+     * @param EavSetup $eavSetup
      * @param array $data
      */
     public function __construct(
@@ -95,6 +111,8 @@ class Family extends Import
         SetFactory $attributeSetFactory,
         TypeListInterface $cacheTypeList,
         Config $eavConfig,
+        AttributeManagementInterface $attributeManagement,
+        EavSetup $eavSetup,
         array $data = []
     ) {
         parent::__construct($outputHelper, $eventManager, $authenticator, $data);
@@ -104,6 +122,8 @@ class Family extends Import
         $this->attributeSetFactory = $attributeSetFactory;
         $this->cacheTypeList       = $cacheTypeList;
         $this->eavConfig           = $eavConfig;
+        $this->attributeManagement = $attributeManagement;
+        $this->eavSetup = $eavSetup;
     }
 
     /**
@@ -189,14 +209,48 @@ class Family extends Import
         /** @var Select $families */
         $families = $connection->select()->from($tmpTable, $values);
 
-        $connection->query(
-            $connection->insertFromSelect(
-                $families,
-                $this->entitiesHelper->getTable('eav_attribute_set'),
-                array_keys($values),
-                1
-            )
-        );
+        try{
+            $connection->query(
+                $connection->insertFromSelect(
+                    $families,
+                    $this->entitiesHelper->getTable('eav_attribute_set'),
+                    array_keys($values),
+                    1
+                )
+            );
+
+        } catch (\Exception $e) {
+            var_dump($e->getMessage());
+        }
+
+        // assign default attribute set to empty attribute set
+
+        $attributes = $this->attributeManagement->getAttributes(4,4);
+
+        $allFamilies = $connection->query($families)->fetchAll();
+        foreach($allFamilies as $family){
+            foreach($attributes as $attribute){
+                $group = $this->eavSetup->getAttributeGroup(
+                    $productEntityTypeId,
+                    4,
+                    $attribute->getAttributeGroupId()
+                );
+
+                $this->eavSetup->addAttributeGroup(
+                    $productEntityTypeId,
+                    $family['attribute_set_id'],
+                    $group['attribute_group_name']
+                );
+
+                $this->eavSetup->addAttributeToSet(
+                    $productEntityTypeId,
+                    $family['attribute_set_id'],
+                    $group['attribute_group_name'],
+                    $attribute->getAttributeId(),
+                    $attribute->getSortOrder());
+
+            }
+        }
     }
 
     /**
