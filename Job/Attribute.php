@@ -40,6 +40,14 @@ class Attribute extends Import
      * @var string $code
      */
     protected $code = 'attribute';
+
+    /**
+     * This variable contains a string value
+     *
+     * @var string $code
+     */
+    protected $groupCode = 'attribute_group';
+
     /**
      * This variable contains a string value
      *
@@ -177,7 +185,7 @@ class Attribute extends Import
             return;
         }
         $attributeGroup = reset($attributeGroup);
-        $this->entitiesHelper->createTmpTableFromApi($attributeGroup, 'attribute_group');
+        $this->entitiesHelper->createTmpTableFromApi($attributeGroup, $this->groupCode);
     }
 
     /**
@@ -224,7 +232,7 @@ class Attribute extends Import
          * @var array $attribute
          */
         foreach ($attributeGroups as $index => $attributeGroup) {
-            $this->entitiesHelper->insertDataFromApi($attributeGroup, 'attribute_group');
+            $this->entitiesHelper->insertDataFromApi($attributeGroup, $this->groupCode);
         }
         $index++;
 
@@ -566,7 +574,7 @@ class Attribute extends Import
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
-        $tmpTable = $this->entitiesHelper->getTableName('attribute_group');
+        $tmpTable = $this->entitiesHelper->getTableName($this->groupCode);
         /** @var Select $import */
         $import = $connection->select()->from($tmpTable);
         /** @var \Zend_Db_Statement_Interface $query */
@@ -667,6 +675,7 @@ class Attribute extends Import
     public function dropTable()
     {
         $this->entitiesHelper->dropTable($this->getCode());
+        $this->entitiesHelper->dropTable($this->groupCode);
     }
 
     /**
