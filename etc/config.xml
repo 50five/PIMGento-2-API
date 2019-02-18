@@ -25,6 +25,7 @@
                 <completeness_type>=</completeness_type>
                 <completeness_value>100</completeness_value>
                 <status>1</status>
+                <delta_updated>15</delta_updated>
             </products_filters>
         </pimgento>
     </default>

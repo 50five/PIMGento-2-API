@@ -79,6 +79,31 @@ class ProductFilters extends AbstractHelper
     }
 
     /**
+     * Get the filters for the product API query
+     *
+     * @return array
+     */
+    public function getDeltaFilters()
+    {
+        /** @var string $mode */
+        $mode = $this->configHelper->getFilterMode();
+        if ($mode == Mode::ADVANCED) {
+            return $this->configHelper->getAdvancedFilters();
+        }
+        $this->addCompletenessFilter();
+        $this->addStatusFilter();
+        $this->addFamiliesFilter();
+        $this->addUpdatedDeltaFilter();
+        /** @var array $filters */
+        $filters = $this->searchBuilder->getFilters();
+        if (empty($filters)) {
+            return [];
+        }
+
+        return ['search' => $filters];
+    }
+
+    /**
      * Add completeness filter for Akeneo API
      *
      * @return void
@@ -147,6 +172,27 @@ class ProductFilters extends AbstractHelper
             return;
         }
         $this->searchBuilder->addFilter('updated', 'SINCE LAST N DAYS', (int)$filter);
+
+        return;
+    }
+
+    /**
+     * Add updated filter for Akeneo API
+     *
+     * @return void
+     */
+    protected function addUpdatedDeltaFilter()
+    {
+        /** @var string $filter */
+        $filter = $this->configHelper->getUpdatedDeltaFilter();
+        if (!is_numeric($filter)) {
+            return;
+        }
+
+        $DateTime = new \DateTime();
+        $DateTime->modify('-'.$filter.' minutes');
+
+        $this->searchBuilder->addFilter('updated', '>', $DateTime->format("Y-m-d H:i:s"));
 
         return;
     }

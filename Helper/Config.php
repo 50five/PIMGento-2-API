@@ -50,6 +50,7 @@ class Config extends AbstractHelper
     const PRODUCTS_FILTERS_STATUS = 'pimgento/products_filters/status';
     const PRODUCTS_FILTERS_FAMILIES = 'pimgento/products_filters/families';
     const PRODUCTS_FILTERS_UPDATED = 'pimgento/products_filters/updated';
+    const PRODUCTS_FILTERS_UPDATED_DELTA = 'pimgento/products_filters/delta_updated';
     const PRODUCTS_FILTERS_ADVANCED_FILTER = 'pimgento/products_filters/advanced_filter';
     const PRODUCT_ATTRIBUTE_MAPPING = 'pimgento/product/attribute_mapping';
     const PRODUCT_CONFIGURABLE_ATTRIBUTES = 'pimgento/product/configurable_attributes';
@@ -278,6 +279,16 @@ class Config extends AbstractHelper
     public function getUpdatedFilter()
     {
         return $this->scopeConfig->getValue(self::PRODUCTS_FILTERS_UPDATED);
+    }
+
+    /**
+     * Retrieve the updated filter
+     *
+     * @return string
+     */
+    public function getUpdatedDeltaFilter()
+    {
+        return $this->scopeConfig->getValue(self::PRODUCTS_FILTERS_UPDATED_DELTA);
     }
 
     /**

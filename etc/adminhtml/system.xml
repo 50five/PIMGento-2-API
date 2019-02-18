@@ -118,9 +118,19 @@
                 </field>
                 <field id="updated" translate="label" type="text" sortOrder="70" showInDefault="1" showInWebsite="0"
                        showInStore="0">
-                    <label>Updated</label>
+                    <label>Full import updated</label>
                     <comment>
                         <![CDATA[Import only product updated since last X days. Leave blank for no filter.]]>
+                    </comment>
+                    <depends>
+                        <field id="mode">standard</field>
+                    </depends>
+                </field>
+                <field id="delta_updated" translate="label" type="text" sortOrder="70" showInDefault="1" showInWebsite="0"
+                       showInStore="0">
+                    <label>Delta import updated</label>
+                    <comment>
+                        <![CDATA[Import only product updated last X minutes. With out the minutes the Delta import will be skipped.]]>
                     </comment>
                     <depends>
                         <field id="mode">standard</field>
