@@ -1652,7 +1652,7 @@ class Product extends Import
                             ->where($tmpProductTable . '._entity_id =?', $product->getId())
                     );
                     if (!empty($urlKeyData['value-' . $local])) {
-                        if (!in_array($product->getId(), $store['website_id'])) {
+                        if (!in_array($product->getId(), $productWebsiteData[$store['website_id']])) {
                             continue;
                         }
 
