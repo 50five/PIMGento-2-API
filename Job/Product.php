@@ -830,18 +830,16 @@ class Product extends Import
             ],
         ];
 
+        $productsWebsites = $connection->fetchAll(
+            $connection->select()->from('catalog_product_website'));
+        $productWebsiteData = [];
+        foreach($productsWebsites as $productsWebsite) {
+            $productWebsiteData[$productsWebsite['website_id']][] = $productsWebsite['product_id'];
+        }
+
         if ($connection->tableColumnExists($tmpProductTable, 'enabled')) {
             $values[0]['status'] = '_status';
         }
-
-        /** @var array $taxClasses */
-        $taxClasses = $this->configHelper->getProductTaxClasses();
-        if (count($taxClasses)) {
-            foreach ($taxClasses as $storeId => $taxClassId) {
-                $values[$storeId]['tax_class_id'] = new Expr($taxClassId);
-            }
-        }
-
 
         /** @var string $column */
         foreach ($productColumns as $column) {
@@ -911,6 +909,20 @@ class Product extends Import
 
         $stores = $this->storeHelper->getAllStores();
 
+        /** @var array $taxClasses */
+        $taxClasses = $this->configHelper->getProductTaxClasses();
+        $storesTaxCheck = $this->storeHelper->getStores();
+        $taxData = [];
+        foreach($storesTaxCheck as $storeId => $storeData){
+
+            if(isset($taxClasses[$storeId]) && $storeId != 0){
+                $taxData[$storeData[0]['website_id']][] = [
+                    'storeId' => $storeData[0]['store_id'],
+                    'taxId' => $taxClasses[$storeData[0]['store_id']]
+                ];
+            }
+        }
+
         $productsWebsites = $connection->fetchAll(
             $connection->select()->from('catalog_product_website'));
         $productWebsiteData = [];
@@ -931,6 +943,25 @@ class Product extends Import
         $dataArray = [];
         $i = 0;
         foreach ($products as $product) {
+
+            if (count($taxData)) {
+                foreach ($taxData as $websiteId => $storesTaxData) {
+
+                    if (isset($productWebsiteData[$websiteId]) && !in_array($product['_entity_id'], $productWebsiteData[$websiteId]) && $websiteId != 0 || !isset($productWebsiteData[$websiteId]) ) {
+                        continue;
+                    }
+
+                    foreach($storesTaxData as $storeTaxData ){
+                        $dataArray['int'][$i][] = [
+                            "attribute_id" => 450,
+                            "store_id" => $storeTaxData['storeId'],
+                            "row_id" => $product['_entity_id'],
+                            "value" => $storeTaxData['taxId']
+                        ];
+                    }
+                }
+            }
+
             $attributeSelect = $connection->select()
                 ->from(
                     $tmpAttributeTable
@@ -994,6 +1025,7 @@ class Product extends Import
                 }
             }
         }
+
         foreach ($dataArray as $backendType => $batches) {
             foreach ($batches as $data) {// Custom mysql reason is activating replace on duplicate for insertArray alternative is saving attributes one by one (time consuming)
                 $this->customMysql->insertMultiple(
