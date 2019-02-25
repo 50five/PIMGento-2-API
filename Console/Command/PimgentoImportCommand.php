@@ -34,6 +34,12 @@ class PimgentoImportCommand extends Command
      */
     const IMPORT_CODE = 'code';
     /**
+     * This constant contains a string
+     *
+     * @var string IMPORT_CACHE
+     */
+    const IMPORT_CACHE = 'noCache';
+    /**
      * This variable contains a State
      *
      * @var State $appState
@@ -71,7 +77,8 @@ class PimgentoImportCommand extends Command
     {
         $this->setName('pimgento:import')
             ->setDescription('Import PIM data to Magento')
-            ->addOption(self::IMPORT_CODE,null,InputOption::VALUE_REQUIRED);
+            ->addOption(self::IMPORT_CODE,null,InputOption::VALUE_REQUIRED)
+            ->addOption(self::IMPORT_CACHE,null, InputOption::VALUE_OPTIONAL);
     }
 
     /**
@@ -89,22 +96,24 @@ class PimgentoImportCommand extends Command
 
         /** @var string $code */
         $code = $input->getOption(self::IMPORT_CODE);
+        $noCache = $input->getOption(self::IMPORT_CACHE);
         if (!$code) {
             $this->usage($output);
         } else {
-            $this->import($code, $output);
+            $this->import($code, $noCache, $output);
         }
     }
 
     /**
      * Run import
      *
-     * @param string $code
+     * @param $code
+     * @param bool $noCache
      * @param OutputInterface $output
      *
      * @return bool
      */
-    protected function import($code, OutputInterface $output)
+    protected function import($code, $noCache, OutputInterface $output)
     {
         /** @var Import $import */
         $import = $this->importRepository->getByCode($code);
@@ -120,6 +129,9 @@ class PimgentoImportCommand extends Command
             $import->setStep(0);
 
             while ($import->canExecute()) {
+                if($import->getMethod() == 'cleanCache' && $noCache != null) {
+                    $import->nextStep();
+                }
                 /** @var string $comment */
                 $comment = $import->getComment();
                 $output->writeln($comment);
@@ -162,6 +174,7 @@ class PimgentoImportCommand extends Command
         // Options
         $output->writeln('<comment>' . __('Options:') . '</comment>');
         $output->writeln('<info>' . __('--code') . '</info>');
+        $output->writeln('<info>' . __('--noCache') . '</info>');
         $output->writeln('');
 
         // Codes

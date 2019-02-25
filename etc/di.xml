@@ -310,16 +310,16 @@
                         <item name="comment" xsi:type="string">Create or update product entities</item>
                     </item>
                     <item name="8" xsi:type="array">
+                        <item name="method" xsi:type="string">setWebsites</item>
+                        <item name="comment" xsi:type="string">Set products to websites</item>
+                    </item>
+                    <item name="9" xsi:type="array">
                         <item name="method" xsi:type="string">setValues</item>
                         <item name="comment" xsi:type="string">Set values to attributes</item>
                     </item>
-                    <item name="9" xsi:type="array">
+                    <item name="10" xsi:type="array">
                         <item name="method" xsi:type="string">linkConfigurable</item>
                         <item name="comment" xsi:type="string">Link configurable with children</item>
-                    </item>
-                    <item name="10" xsi:type="array">
-                        <item name="method" xsi:type="string">setWebsites</item>
-                        <item name="comment" xsi:type="string">Set products to websites</item>
                     </item>
                     <item name="11" xsi:type="array">
                         <item name="method" xsi:type="string">setCategories</item>
