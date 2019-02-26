@@ -830,18 +830,16 @@ class Product extends Import
             ],
         ];
 
+        $productsWebsites = $connection->fetchAll(
+            $connection->select()->from('catalog_product_website'));
+        $productWebsiteData = [];
+        foreach($productsWebsites as $productsWebsite) {
+            $productWebsiteData[$productsWebsite['website_id']][] = $productsWebsite['product_id'];
+        }
+
         if ($connection->tableColumnExists($tmpProductTable, 'enabled')) {
             $values[0]['status'] = '_status';
         }
-
-        /** @var array $taxClasses */
-        $taxClasses = $this->configHelper->getProductTaxClasses();
-        if (count($taxClasses)) {
-            foreach ($taxClasses as $storeId => $taxClassId) {
-                $values[$storeId]['tax_class_id'] = new Expr($taxClassId);
-            }
-        }
-
 
         /** @var string $column */
         foreach ($productColumns as $column) {
@@ -910,11 +908,34 @@ class Product extends Import
         $tmpAttributeTable = $this->entitiesHelper->getTableName($this->attributeCode);
 
         $stores = $this->storeHelper->getAllStores();
+
+        /** @var array $taxClasses */
+        $taxClasses = $this->configHelper->getProductTaxClasses();
+        $storesTaxCheck = $this->storeHelper->getStores();
+        $taxData = [];
+        foreach($storesTaxCheck as $storeId => $storeData){
+
+            if(isset($taxClasses[$storeId]) && $storeId != 0){
+                $taxData[$storeData[0]['website_id']][] = [
+                    'storeId' => $storeData[0]['store_id'],
+                    'taxId' => $taxClasses[$storeData[0]['store_id']]
+                ];
+            }
+        }
+
+        $productsWebsites = $connection->fetchAll(
+            $connection->select()->from('catalog_product_website'));
+        $productWebsiteData = [];
+        foreach($productsWebsites as $productsWebsite) {
+            $productWebsiteData[$productsWebsite['website_id']][] = $productsWebsite['product_id'];
+        }
+
         $productSelect = $connection->select()
             ->from(
                 $tmpProductTable,
                 [
-                    '_product_id'
+                    '_product_id',
+                    '_entity_id'
                 ]
             );
 
@@ -922,6 +943,25 @@ class Product extends Import
         $dataArray = [];
         $i = 0;
         foreach ($products as $product) {
+
+            if (count($taxData)) {
+                foreach ($taxData as $websiteId => $storesTaxData) {
+
+                    if (isset($productWebsiteData[$websiteId]) && !in_array($product['_entity_id'], $productWebsiteData[$websiteId]) && $websiteId != 0 || !isset($productWebsiteData[$websiteId]) ) {
+                        continue;
+                    }
+
+                    foreach($storesTaxData as $storeTaxData ){
+                        $dataArray['int'][$i][] = [
+                            "attribute_id" => 450,
+                            "store_id" => $storeTaxData['storeId'],
+                            "row_id" => $product['_entity_id'],
+                            "value" => $storeTaxData['taxId']
+                        ];
+                    }
+                }
+            }
+
             $attributeSelect = $connection->select()
                 ->from(
                     $tmpAttributeTable
@@ -952,27 +992,34 @@ class Product extends Import
                 $backendType = $attribute[AttributeInterface::BACKEND_TYPE];
                 foreach ($pimAttribute as $key => $value) {
                     $key = str_replace("value-", '', $key);
-                    foreach ($stores as $store => $storeData) {
-                        if ($key == $store || $key == "value" && $storeData[0]['store_id'] == 0) {
-                            if (!empty($value)) {
-                                $checkOptions = $connection->select()
-                                    ->from('eav_attribute_option')
-                                    ->where('attribute_id = ?', $attribute['attribute_id']);
-                                if ($connection->query($checkOptions)->rowCount() != 0) {
-                                    if (!$this->validateValue($value)) {
-                                        $value = $this->getOptionValue($pimAttribute['attribute_code'], $value);
-                                    }
-                                }
+                    foreach ($stores as $storeKey => $storeData) {
+                        foreach($storeData as $store){
+                            if ($key == $storeKey || $key == "value" && $store['store_id'] == 0) {
+                                if (!empty($value)) {
 
-                                $dataArray[$backendType][$i][] = [
-                                    "attribute_id" => $attribute['attribute_id'],
-                                    "store_id" => $storeData[0]['store_id'],
-                                    "row_id" => $pimAttribute['_entity_id'],
-                                    "value" => $value
-                                ];
-                                // todo create nicer batches with manageable batch sizes
-                                if (count($dataArray[$backendType][$i]) == 1000) {
-                                    $i++;
+                                    if (!in_array($product['_entity_id'], $productWebsiteData[$store['website_id']]) && $store['website_id'] != 0) {
+                                        continue;
+                                    }
+
+                                    $checkOptions = $connection->select()
+                                        ->from('eav_attribute_option')
+                                        ->where('attribute_id = ?', $attribute['attribute_id']);
+                                    if ($connection->query($checkOptions)->rowCount() != 0) {
+                                        if (!$this->validateValue($value)) {
+                                            $value = $this->getOptionValue($pimAttribute['attribute_code'], $value);
+                                        }
+                                    }
+
+                                    $dataArray[$backendType][$i][] = [
+                                        "attribute_id" => $attribute['attribute_id'],
+                                        "store_id" => $store['store_id'],
+                                        "row_id" => $pimAttribute['_entity_id'],
+                                        "value" => $value
+                                    ];
+                                    // todo create nicer batches with manageable batch sizes
+                                    if (count($dataArray[$backendType][$i]) == 1000) {
+                                        $i++;
+                                    }
                                 }
                             }
                         }
@@ -980,6 +1027,7 @@ class Product extends Import
                 }
             }
         }
+
         foreach ($dataArray as $backendType => $batches) {
             foreach ($batches as $data) {// Custom mysql reason is activating replace on duplicate for insertArray alternative is saving attributes one by one (time consuming)
                 $this->customMysql->insertMultiple(
@@ -1570,7 +1618,6 @@ class Product extends Import
      */
     public function setUrlRewrite()
     {
-
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpProductTable */
@@ -1582,6 +1629,14 @@ class Product extends Import
             $this->storeHelper->getStores(['lang']), // en_US
             $this->storeHelper->getStores(['lang', 'channel_code']) // en_US-channel
         );
+
+
+        $productsWebsites = $connection->fetchAll(
+            $connection->select()->from('catalog_product_website'));
+        $productWebsiteData = [];
+        foreach($productsWebsites as $productsWebsite) {
+            $productWebsiteData[$productsWebsite['website_id']][] = $productsWebsite['product_id'];
+        }
 
         /**
          * @var string $local
@@ -1631,14 +1686,7 @@ class Product extends Import
                             ->where($tmpProductTable . '._entity_id =?', $product->getId())
                     );
                     if (!empty($urlKeyData['value-' . $local])) {
-
-                        $checkWebsite = $connection->fetchAll(
-                            $connection->select()
-                                ->from('catalog_product_website')
-                                ->where('product_id =?', $product->getId())
-                                ->where('website_id =?', $store['website_id'])
-                        );
-                        if (count($checkWebsite) == 0) {
+                        if (!in_array($product->getId(), $productWebsiteData[$store['website_id']])) {
                             continue;
                         }
 
@@ -2215,5 +2263,4 @@ class Product extends Import
 
         $this->setMessage(__('Cache cleaned for: %1', join(', ', $types)));
     }
-
 }
