@@ -992,32 +992,34 @@ class Product extends Import
                 $backendType = $attribute[AttributeInterface::BACKEND_TYPE];
                 foreach ($pimAttribute as $key => $value) {
                     $key = str_replace("value-", '', $key);
-                    foreach ($stores as $store => $storeData) {
-                        if ($key == $store || $key == "value" && $storeData[0]['store_id'] == 0) {
-                            if (!empty($value)) {
+                    foreach ($stores as $storeKey => $storeData) {
+                        foreach($storeData as $store){
+                            if ($key == $storeKey || $key == "value" && $store['store_id'] == 0) {
+                                if (!empty($value)) {
 
-                                if (!in_array($product['_entity_id'], $productWebsiteData[$storeData[0]['website_id']]) && $storeData[0]['website_id'] != 0) {
-                                    continue;
-                                }
-
-                                $checkOptions = $connection->select()
-                                    ->from('eav_attribute_option')
-                                    ->where('attribute_id = ?', $attribute['attribute_id']);
-                                if ($connection->query($checkOptions)->rowCount() != 0) {
-                                    if (!$this->validateValue($value)) {
-                                        $value = $this->getOptionValue($pimAttribute['attribute_code'], $value);
+                                    if (!in_array($product['_entity_id'], $productWebsiteData[$store['website_id']]) && $store['website_id'] != 0) {
+                                        continue;
                                     }
-                                }
 
-                                $dataArray[$backendType][$i][] = [
-                                    "attribute_id" => $attribute['attribute_id'],
-                                    "store_id" => $storeData[0]['store_id'],
-                                    "row_id" => $pimAttribute['_entity_id'],
-                                    "value" => $value
-                                ];
-                                // todo create nicer batches with manageable batch sizes
-                                if (count($dataArray[$backendType][$i]) == 1000) {
-                                    $i++;
+                                    $checkOptions = $connection->select()
+                                        ->from('eav_attribute_option')
+                                        ->where('attribute_id = ?', $attribute['attribute_id']);
+                                    if ($connection->query($checkOptions)->rowCount() != 0) {
+                                        if (!$this->validateValue($value)) {
+                                            $value = $this->getOptionValue($pimAttribute['attribute_code'], $value);
+                                        }
+                                    }
+
+                                    $dataArray[$backendType][$i][] = [
+                                        "attribute_id" => $attribute['attribute_id'],
+                                        "store_id" => $store['store_id'],
+                                        "row_id" => $pimAttribute['_entity_id'],
+                                        "value" => $value
+                                    ];
+                                    // todo create nicer batches with manageable batch sizes
+                                    if (count($dataArray[$backendType][$i]) == 1000) {
+                                        $i++;
+                                    }
                                 }
                             }
                         }
