@@ -266,14 +266,48 @@ class Product extends Import
     }
 
     /**
-     * Insert data into temporary table
+     * Set correct filters to insert Data
      *
      * @return void
+     * @throws \Exception
      */
     public function insertData()
     {
         /** @var array $filters */
         $filters = $this->productFilters->getFilters();
+        $this->runData($filters);
+    }
+
+    /**
+     * Insert data into temporary table
+     *
+     * @return void
+     * @throws \Exception
+     */
+    public function insertDataDelta()
+    {
+        if(empty($this->configHelper->getUpdatedDeltaFilter())){
+
+            $this->setStatus(false);
+            $this->setMessage(
+                __('Delta import not configured')
+            );
+            $this->stop();
+            return;
+        }
+
+        /** @var array $filters */
+        $filters = $this->productFilters->getDeltaFilters();
+
+        $this->runData($filters);
+    }
+
+    /**
+     * Collect data with correct filters
+     *
+     * @param array $filters
+     */
+    public function runData($filters){
         /** @var string|int $paginationSize */
         $paginationSize = $this->configHelper->getPanigationSize();
         /** @var ResourceCursorInterface $productModels */
