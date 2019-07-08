@@ -39,6 +39,7 @@ use Magento\Catalog\Model\ResourceModel\Product\Collection as ProductCollection;
 use Magento\Catalog\Model\CategoryRepository;
 use Magento\Catalog\Model\ResourceModel\Category\Collection as CategoryCollection;
 use Magento\Catalog\Model\ResourceModel\Category\CollectionFactory as CategoryCollectionFactory;
+use Magento\Store\Model\StoreManagerInterface;
 
 /**
  * Class Product
@@ -178,6 +179,13 @@ class Product extends Import
     protected $categoryCollectionFactory;
 
     /**
+     * Store manager interface
+     *
+     * @var StoreManagerInterface
+     */
+    protected $storeManager;
+
+    /**
      * Category model repository
      * @var CategoryRepository
      */
@@ -222,6 +230,7 @@ class Product extends Import
         CustomMysql $customMysql,
         CategoryCollectionFactory $categoryCollectionFactory,
         CategoryRepository $categoryRepository,
+        StoreManagerInterface $storeManager,
         array $data = []
     ) {
         parent::__construct($outputHelper, $eventManager, $authenticator, $data);
@@ -240,6 +249,7 @@ class Product extends Import
         $this->productCollection = $productCollection;
         $this->categoryCollectionFactory = $categoryCollectionFactory;
         $this->categoryRepository = $categoryRepository;
+        $this->storeManager = $storeManager;
     }
 
     /**
@@ -266,14 +276,48 @@ class Product extends Import
     }
 
     /**
-     * Insert data into temporary table
+     * Set correct filters to insert Data
      *
      * @return void
+     * @throws \Exception
      */
     public function insertData()
     {
         /** @var array $filters */
         $filters = $this->productFilters->getFilters();
+        $this->runData($filters);
+    }
+
+    /**
+     * Insert data into temporary table
+     *
+     * @return void
+     * @throws \Exception
+     */
+    public function insertDataDelta()
+    {
+        if(empty($this->configHelper->getUpdatedDeltaFilter())){
+
+            $this->setStatus(false);
+            $this->setMessage(
+                __('Delta import not configured')
+            );
+            $this->stop();
+            return;
+        }
+
+        /** @var array $filters */
+        $filters = $this->productFilters->getDeltaFilters();
+
+        $this->runData($filters);
+    }
+
+    /**
+     * Collect data with correct filters
+     *
+     * @param array $filters
+     */
+    public function runData($filters){
         /** @var string|int $paginationSize */
         $paginationSize = $this->configHelper->getPanigationSize();
         /** @var ResourceCursorInterface $productModels */
@@ -1359,46 +1403,91 @@ class Product extends Import
     }
 
     /**
-     * Set website
-     *
-     * @return void
-     * @throws LocalizedException
+     * disable setWebsites function we use published on website
      */
     public function setWebsites()
     {
-        /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
-        /** @var string $tmpTable */
-        $tmpTable = $this->entitiesHelper->getTableName($this->productCode);
-        /** @var array $websites */
-        $websites = $this->storeHelper->getStores('website_id');
+        /** @var string $tmpProductTable */
+        $tmpProductTable = $this->entitiesHelper->getTableName($this->productCode);
+        /** @var string $tmpAttributeTable */
+        $tmpAttributeTable = $this->entitiesHelper->getTableName($this->attributeCode);
 
-        /**
-         * @var int $websiteId
-         * @var array $affected
-         */
-        foreach ($websites as $websiteId => $affected) {
-            if ($websiteId == 0) {
-                continue;
-            }
+        $isAttributeMapping = $this->configHelper->getIsAttributeMapping();
+        $mappedAttribute = $this->configHelper->getPublishedWebsiteMappingAttribute();
 
-            /** @var Select $select */
-            $select = $connection->select()->from(
-                $tmpTable,
-                [
-                    'product_id' => '_entity_id',
-                    'website_id' => new Expr($websiteId),
-                ]
-            );
-
-            $connection->query(
-                $connection->insertFromSelect(
-                    $select,
-                    $this->entitiesHelper->getTable('catalog_product_website'),
-                    ['product_id', 'website_id'],
-                    AdapterInterface::INSERT_ON_DUPLICATE
+        // enable websites based on published website attribute
+        if($isAttributeMapping == 1 && $mappedAttribute !== null){
+            $attributeSelect = $connection->select()
+                ->from(
+                    $tmpAttributeTable
                 )
-            );
+                ->join(
+                    $tmpProductTable,
+                    $tmpAttributeTable . '._product_id = ' . $tmpProductTable . '._product_id')
+                ->where($tmpAttributeTable . ".attribute_code = '".$mappedAttribute."'");
+            $websiteAttributes = $connection->query($attributeSelect)->fetchAll();
+
+            $sites = json_decode($this->configHelper->getPublishedWebsiteMapping(), true);
+
+            $magentoStores = $this->storeManager->getWebsites();
+            $deleted = [];
+            $connection->query('SET FOREIGN_KEY_CHECKS = 0');
+            foreach ($websiteAttributes as $websiteAttribute) {
+                if (!in_array($websiteAttribute['_entity_id'], $deleted)) {
+                    $connection->delete("catalog_product_website", 'product_id = ' . $websiteAttribute['_entity_id']);
+                    $deleted[] = $websiteAttribute['_entity_id'];
+                }
+                $publishedSites = explode(',', $websiteAttribute['value']);
+
+                foreach ($publishedSites as $publishedSite) {
+                    foreach ($sites as $site) {
+                        if ($publishedSite == $site['channel']) {
+                            foreach ($magentoStores as $magentoStore) {
+                                if ($magentoStore->getCode() == $site['website']) {
+                                    $connection->insertOnDuplicate("catalog_product_website", [
+                                        'website_id' => $magentoStore->getId(),
+                                        'product_id' => $websiteAttribute['_entity_id']
+                                    ], ['website_id', 'product_id']);
+                                }
+
+                            }
+                        }
+                    }
+                }
+            }
+            $connection->query('SET FOREIGN_KEY_CHECKS = 1');
+        } else {
+            // enable all websites
+            /** @var array $websites */
+            $websites = $this->storeHelper->getStores('website_id');
+            /**
+             * @var int $websiteId
+             * @var array $affected
+             */
+            foreach ($websites as $websiteId => $affected) {
+                if ($websiteId == 0) {
+                    continue;
+                }
+
+                /** @var Select $select */
+                $select = $connection->select()->from(
+                    $tmpProductTable,
+                    [
+                        'product_id' => '_entity_id',
+                        'website_id' => new Expr($websiteId),
+                    ]
+                );
+
+                $connection->query(
+                    $connection->insertFromSelect(
+                        $select,
+                        $this->entitiesHelper->getTable('catalog_product_website'),
+                        ['product_id', 'website_id'],
+                        AdapterInterface::INSERT_ON_DUPLICATE
+                    )
+                );
+            }
         }
     }
 
@@ -2072,6 +2161,13 @@ class Product extends Import
         /** @var array $gallery */
         $gallery = $this->configHelper->getAssetImportGalleryColumns();
 
+        $productsWebsites = $connection->fetchAll(
+            $connection->select()->from('catalog_product_website'));
+        $productWebsiteData = [];
+        foreach($productsWebsites as $productsWebsite) {
+            $productWebsiteData[$productsWebsite['website_id']][] = $productsWebsite['product_id'];
+        }
+
         /** @var \Magento\Catalog\Model\ResourceModel\Eav\Attribute $galleryAttribute */
         $galleryAttribute = $this->configHelper->getAttribute(ProductModel::ENTITY, 'media_gallery');
         /** @var string $galleryTable */
@@ -2089,12 +2185,21 @@ class Product extends Import
 
             return;
         }
+        $stores = $this->storeHelper->getStores();
 
         /** @var string $table */
         $table = $this->entitiesHelper->getTable('catalog_product_entity');
         /** @var string $columnIdentifier */
         $columnIdentifier = $this->entitiesHelper->getColumnIdentifier($table);
 
+        /** @var array $entities */
+        $attributes = [
+            $this->configHelper->getAttribute(ProductModel::ENTITY, 'image'),
+            $this->configHelper->getAttribute(ProductModel::ENTITY, 'small_image'),
+            $this->configHelper->getAttribute(ProductModel::ENTITY, 'thumbnail'),
+        ];
+
+        $products = [];
         $files = [];
         foreach ($gallery as $asset) {
 
@@ -2104,16 +2209,16 @@ class Product extends Import
                     ->joinInner(
                         $tmpProductTable,
                         $tmpAttributeTable . '._product_id = ' . $tmpProductTable . '._product_id')
-                    ->where($tmpAttributeTable . '.attribute_code = ?', $asset)
+                    ->where($tmpAttributeTable.'.attribute_code = ?', $asset)
             );
 
-            if (empty($assetAttributes)) {
+            if(empty($assetAttributes))  {
                 $this->setStatus(false);
                 $this->setMessage(__('There are no assets for: ') . $asset);
                 continue;
             }
 
-            foreach ($assetAttributes as $assetAttribute) {
+            foreach($assetAttributes as $assetAttribute){
                 /** @var array $assets */
                 $assets = explode(',', $assetAttribute['value']);
 
@@ -2174,43 +2279,42 @@ class Product extends Import
 
                     /** @var array $data */
                     $data = [
-                        'value_id' => $valueId,
+                        'value_id'        => $valueId,
                         'row_id' => $assetAttribute['_entity_id']
                     ];
                     $connection->insertOnDuplicate($galleryEntityTable, $data, array_keys($data));
 
                     /** @var array $data */
                     $data = [
-                        'value_id' => $valueId,
-                        'store_id' => 0,
+                        'value_id'        => $valueId,
+                        'store_id'        => 0,
                         'row_id' => $assetAttribute['_entity_id'],
-                        'label' => $media['description'],
-                        'position' => $key,
-                        'disabled' => 0,
+                        'label'           => $media['description'],
+                        'position'        => $key,
+                        'disabled'        => 0,
                     ];
                     $connection->insertOnDuplicate($galleryValueTable, $data, array_keys($data));
 
-                    if (empty($files)) {
-                        /** @var array $entities */
-                        $attributes = [
-                            $this->configHelper->getAttribute(ProductModel::ENTITY, 'image'),
-                            $this->configHelper->getAttribute(ProductModel::ENTITY, 'small_image'),
-                            $this->configHelper->getAttribute(ProductModel::ENTITY, 'thumbnail'),
-                        ];
-
+                    if (!in_array($assetAttribute['_entity_id'], $products)) {
                         foreach ($attributes as $attribute) {
                             if (!$attribute) {
                                 continue;
                             }
-                            /** @var array $data */
-                            $data = [
-                                'attribute_id' => $attribute->getId(),
-                                'store_id' => 0,
-                                'row_id' => $assetAttribute['_entity_id'],
-                                'value' => $file
-                            ];
-                            $connection->insertOnDuplicate($productImageTable, $data, array_keys($data));
+                            foreach($stores as $store) {
+                                if (!in_array($assetAttribute['_entity_id'], $productWebsiteData[$store[0]['website_id']]) && $store[0]['website_id'] != 0) {
+                                    continue;
+                                }
+                                /** @var array $data */
+                                $data = [
+                                    'attribute_id'    => $attribute->getId(),
+                                    'store_id'        => $store[0]['store_id'],
+                                    'row_id'          => $assetAttribute['_entity_id'],
+                                    'value'           => $file
+                                ];
+                                $connection->insertOnDuplicate($productImageTable, $data, array_keys($data));
+                            }
                         }
+                        $products[] = $assetAttribute['_entity_id'];
                     }
 
                     $files[] = $file;
@@ -2224,7 +2328,7 @@ class Product extends Import
                 $connection->delete(
                     $galleryEntityTable,
                     [
-                        'value_id IN (?)' => $cleaner,
+                        'value_id IN (?)'          => $cleaner,
                         'row_id = ?' => $assetAttribute['_entity_id']
                     ]
                 );
