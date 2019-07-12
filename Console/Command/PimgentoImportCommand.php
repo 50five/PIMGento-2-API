@@ -40,6 +40,12 @@ class PimgentoImportCommand extends Command
      */
     const IMPORT_CACHE = 'noCache';
     /**
+     * This constant contains a string
+     *
+     * @var string IMPORT_TYPE
+     */
+    const IMPORT_TYPE = 'type';
+    /**
      * This variable contains a State
      *
      * @var State $appState
@@ -78,7 +84,8 @@ class PimgentoImportCommand extends Command
         $this->setName('pimgento:import')
             ->setDescription('Import PIM data to Magento')
             ->addOption(self::IMPORT_CODE,null,InputOption::VALUE_REQUIRED)
-            ->addOption(self::IMPORT_CACHE,null, InputOption::VALUE_OPTIONAL);
+            ->addOption(self::IMPORT_CACHE,null, InputOption::VALUE_OPTIONAL)
+            ->addOption(self::IMPORT_TYPE,null, InputOption::VALUE_OPTIONAL);
     }
 
     /**
@@ -97,23 +104,23 @@ class PimgentoImportCommand extends Command
         /** @var string $code */
         $code = $input->getOption(self::IMPORT_CODE);
         $noCache = $input->getOption(self::IMPORT_CACHE);
+        $type = $input->getOption(self::IMPORT_TYPE);
         if (!$code) {
             $this->usage($output);
         } else {
-            $this->import($code, $noCache, $output);
+            $this->import($code, $noCache, $type, $output);
         }
     }
 
     /**
      * Run import
-     *
      * @param $code
-     * @param bool $noCache
+     * @param null $noCache
+     * @param null $type
      * @param OutputInterface $output
-     *
      * @return bool
      */
-    protected function import($code, $noCache, OutputInterface $output)
+    protected function import($code, $noCache, $type, OutputInterface $output)
     {
         /** @var Import $import */
         $import = $this->importRepository->getByCode($code);
@@ -132,6 +139,13 @@ class PimgentoImportCommand extends Command
                 if($import->getMethod() == 'cleanCache' && $noCache != null) {
                     $import->nextStep();
                 }
+
+                if($code == 'product' && $import->getMethod() == 'insertData' && $type == 'delta') {
+                    $import->nextStep();
+                } elseif($code == 'product' && $import->getMethod() == 'insertDataDelta' && $type != 'delta') {
+                    $import->nextStep();
+                }
+
                 /** @var string $comment */
                 $comment = $import->getComment();
                 $output->writeln($comment);

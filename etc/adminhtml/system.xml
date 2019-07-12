@@ -61,6 +61,27 @@
                     <backend_model>Magento\Config\Model\Config\Backend\Serialized\ArraySerialized</backend_model>
                     <comment>Match Magento website with Pim channel</comment>
                 </field>
+                <field id="is_attribute_mapping" translate="label comment" type="select" sortOrder="100" showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Use attribute website mapping</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
+                <field id="published_website_attribute" translate="label comment" type="text" sortOrder="110" showInDefault="1"
+                       showInWebsite="0" showInStore="0">
+                    <label>Published website attribute</label>
+                    <comment>Attribute containing a multi select with your websites</comment>
+                    <depends>
+                        <field id="pimgento/akeneo_api/is_attribute_mapping">1</field>
+                    </depends>
+                </field>
+                <field id="published_website" translate="label" type="text" sortOrder="120" showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Published on website</label>
+                    <frontend_model>Pimgento\Api\Block\Adminhtml\System\Config\Form\Field\Website</frontend_model>
+                    <backend_model>Magento\Config\Model\Config\Backend\Serialized\ArraySerialized</backend_model>
+                    <comment>Match Magento website with Published on website</comment>
+                    <depends>
+                        <field id="pimgento/akeneo_api/is_attribute_mapping">1</field>
+                    </depends>
+                </field>
             </group>
             <group id="products_filters" translate="label" type="text" sortOrder="20" showInDefault="1"
                    showInWebsite="0" showInStore="0">
@@ -118,9 +139,19 @@
                 </field>
                 <field id="updated" translate="label" type="text" sortOrder="70" showInDefault="1" showInWebsite="0"
                        showInStore="0">
-                    <label>Updated</label>
+                    <label>Full import updated</label>
                     <comment>
                         <![CDATA[Import only product updated since last X days. Leave blank for no filter.]]>
+                    </comment>
+                    <depends>
+                        <field id="mode">standard</field>
+                    </depends>
+                </field>
+                <field id="delta_updated" translate="label" type="text" sortOrder="70" showInDefault="1" showInWebsite="0"
+                       showInStore="0">
+                    <label>Delta import updated</label>
+                    <comment>
+                        <![CDATA[Import only product updated last X minutes. With out the minutes the Delta import will be skipped.]]>
                     </comment>
                     <depends>
                         <field id="mode">standard</field>

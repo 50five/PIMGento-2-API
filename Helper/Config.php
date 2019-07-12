@@ -50,6 +50,7 @@ class Config extends AbstractHelper
     const PRODUCTS_FILTERS_STATUS = 'pimgento/products_filters/status';
     const PRODUCTS_FILTERS_FAMILIES = 'pimgento/products_filters/families';
     const PRODUCTS_FILTERS_UPDATED = 'pimgento/products_filters/updated';
+    const PRODUCTS_FILTERS_UPDATED_DELTA = 'pimgento/products_filters/delta_updated';
     const PRODUCTS_FILTERS_ADVANCED_FILTER = 'pimgento/products_filters/advanced_filter';
     const PRODUCT_ATTRIBUTE_MAPPING = 'pimgento/product/attribute_mapping';
     const PRODUCT_CONFIGURABLE_ATTRIBUTES = 'pimgento/product/configurable_attributes';
@@ -60,6 +61,9 @@ class Config extends AbstractHelper
     const PRODUCT_ASSET_ENABLED = 'pimgento/product/asset_enabled';
     const PRODUCT_ASSET_GALLERY = 'pimgento/product/asset_gallery';
     const ATTRIBUTE_TYPES = 'pimgento/attribute/types';
+    const AKENEO_API_IS_ATTRIBUTE_MAPPING = 'pimgento/akeneo_api/is_attribute_mapping';
+    const AKENEO_API_PUBLISHED_WEBSITE_MAPPING_ATTRIBUTE = 'pimgento/akeneo_api/published_website_attribute';
+    const AKENEO_API_PUBLISHED_WEBSITE_MAPPING = 'pimgento/akeneo_api/published_website';
 
     /**
      * @var int PAGINATION_SIZE_DEFAULT_VALUE
@@ -278,6 +282,16 @@ class Config extends AbstractHelper
     public function getUpdatedFilter()
     {
         return $this->scopeConfig->getValue(self::PRODUCTS_FILTERS_UPDATED);
+    }
+
+    /**
+     * Retrieve the updated filter
+     *
+     * @return string
+     */
+    public function getUpdatedDeltaFilter()
+    {
+        return $this->scopeConfig->getValue(self::PRODUCTS_FILTERS_UPDATED_DELTA);
     }
 
     /**
@@ -648,5 +662,35 @@ class Config extends AbstractHelper
         }
 
         return false;
+    }
+
+    /**
+     * Is website mapping with attribute active
+     *
+     * @return int
+     */
+    public function getIsAttributeMapping()
+    {
+        return $this->scopeConfig->getValue(self::AKENEO_API_IS_ATTRIBUTE_MAPPING);
+    }
+
+    /**
+     * Retrieve website mapping attribute
+     *
+     * @return string
+     */
+    public function getPublishedWebsiteMappingAttribute()
+    {
+        return $this->scopeConfig->getValue(self::AKENEO_API_PUBLISHED_WEBSITE_MAPPING_ATTRIBUTE);
+    }
+
+    /**
+     * Retrieve website mapping
+     *
+     * @return string
+     */
+    public function getPublishedWebsiteMapping()
+    {
+        return $this->scopeConfig->getValue(self::AKENEO_API_PUBLISHED_WEBSITE_MAPPING);
     }
 }
