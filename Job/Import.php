@@ -344,12 +344,10 @@ abstract class Import extends DataObject implements ImportInterface
     }
 
     /**
-     * Function called to run import
-     * This function will get the right method to call
-     *
+     * @param string $type
      * @return array
      */
-    public function execute()
+    public function execute($type = '')
     {
         if (!$this->canExecute() || !isset($this->steps[$this->step])) {
             return $this->outputHelper->getImportAlreadyRunningResponse();
@@ -374,12 +372,22 @@ abstract class Import extends DataObject implements ImportInterface
         );
         $this->initStatus();
 
-        try {
-            $this->{$method}();
-        } catch (\Exception $exception) {
-            $this->stop(true);
-            $this->setMessage($exception->getMessage());
+        if($method == "importAsset" && $type == 'delta'){
+            try {
+                $this->{$method}(true);
+            } catch (\Exception $exception) {
+                $this->stop(true);
+                $this->setMessage($exception->getMessage());
+            }
+        } else {
+            try {
+                $this->{$method}();
+            } catch (\Exception $exception) {
+                $this->stop(true);
+                $this->setMessage($exception->getMessage());
+            }
         }
+
         /** @var array $response */
         $response = $this->getResponse();
 

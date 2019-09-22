@@ -150,7 +150,7 @@ class PimgentoImportCommand extends Command
                 $comment = $import->getComment();
                 $output->writeln($comment);
 
-                $import->execute();
+                $import->execute($type);
 
                 /** @var string $message */
                 $message = $import->getMessage();

@@ -40,6 +40,9 @@ use Magento\Catalog\Model\CategoryRepository;
 use Magento\Catalog\Model\ResourceModel\Category\Collection as CategoryCollection;
 use Magento\Catalog\Model\ResourceModel\Category\CollectionFactory as CategoryCollectionFactory;
 use Magento\Store\Model\StoreManagerInterface;
+use Magento\Catalog\Api\ProductRepositoryInterface;
+use Magento\Catalog\Model\Product\Image\CacheFactory;
+use Magento\Framework\Filesystem\DirectoryList;
 
 /**
  * Class Product
@@ -192,6 +195,21 @@ class Product extends Import
     protected $categoryRepository;
 
     /**
+     * @var ProductRepositoryInterface
+     */
+    protected $productRepository;
+
+    /**
+     * @var CacheFactory
+     */
+    protected $imageCacheFactory;
+
+    /**
+     * @var DirectoryList
+     */
+    protected $directoryList;
+
+    /**
      * Product constructor.
      * @param OutputHelper $outputHelper
      * @param ManagerInterface $eventManager
@@ -210,6 +228,10 @@ class Product extends Import
      * @param CustomMysql $customMysql
      * @param CategoryCollectionFactory $categoryCollectionFactory
      * @param CategoryRepository $categoryRepository
+     * @param StoreManagerInterface $storeManager
+     * @param ProductRepositoryInterface $productRepository
+     * @param CacheFactory $imageCacheFactory
+     * @param DirectoryList $directoryList
      * @param array $data
      */
     public function __construct(
@@ -231,6 +253,9 @@ class Product extends Import
         CategoryCollectionFactory $categoryCollectionFactory,
         CategoryRepository $categoryRepository,
         StoreManagerInterface $storeManager,
+        ProductRepositoryInterface $productRepository,
+        CacheFactory $imageCacheFactory,
+        DirectoryList $directoryList,
         array $data = []
     ) {
         parent::__construct($outputHelper, $eventManager, $authenticator, $data);
@@ -250,6 +275,9 @@ class Product extends Import
         $this->categoryCollectionFactory = $categoryCollectionFactory;
         $this->categoryRepository = $categoryRepository;
         $this->storeManager = $storeManager;
+        $this->productRepository = $productRepository;
+        $this->imageCacheFactory = $imageCacheFactory;
+        $this->directoryList = $directoryList;
     }
 
     /**
@@ -2134,9 +2162,10 @@ class Product extends Import
     /**
      * Import the assets
      *
-     * @return void
+     * @param bool $delta
+     * @throws LocalizedException
      */
-    public function importAsset()
+    public function importAsset($delta = false)
     {
         if (!$this->configHelper->isAkeneoEnterprise()) {
             $this->setStatus(false);
@@ -2201,6 +2230,7 @@ class Product extends Import
 
         $products = [];
         $files = [];
+        $productImages = [];
         foreach ($gallery as $asset) {
 
             $assetAttributes = $connection->fetchAll(
@@ -2314,10 +2344,10 @@ class Product extends Import
                                 $connection->insertOnDuplicate($productImageTable, $data, array_keys($data));
                             }
                         }
-                        $products[] = $assetAttribute['_entity_id'];
                     }
 
                     $files[] = $file;
+                    $productImages[$assetAttribute['_entity_id']][] = $file;
                 }
 
                 /** @var \Magento\Framework\DB\Select $cleaner */
@@ -2333,6 +2363,30 @@ class Product extends Import
                     ]
                 );
             }
+        }
+
+        if($delta == true){
+            $this->generateImageCache($productImages);
+        }
+
+    }
+
+    /**
+     * @param array $productImages
+     */
+    public function generateImageCache(array $productImages)
+    {
+        foreach ($productImages as $productId => $files) {
+            try {
+                /** @var \Magento\Catalog\Model\Product $product */
+                $product = $this->productRepository->getById($productId);
+            } catch (\Magento\Framework\Exception\NoSuchEntityException $e) {
+                continue;
+            }
+
+            /** @var \Magento\Catalog\Model\Product\Image\Cache $imageCache */
+            $imageCache = $this->imageCacheFactory->create();
+            $imageCache->generate($product);
         }
     }
 
