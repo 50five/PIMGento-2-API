@@ -2253,6 +2253,7 @@ class Product extends Import
                 $assets = explode(',', $assetAttribute['value']);
 
                 foreach ($assets as $key => $code) {
+
                     /** @var array $media */
                     $media = $this->akeneoClient->getAssetApi()->get($code);
                     if (!isset($media['code'], $media['reference_files'])) {
@@ -2325,7 +2326,7 @@ class Product extends Import
                     ];
                     $connection->insertOnDuplicate($galleryValueTable, $data, array_keys($data));
 
-                    if (!in_array($assetAttribute['_entity_id'], $products)) {
+                    if (!in_array($assetAttribute['_entity_id'], $products) ) {
                         foreach ($attributes as $attribute) {
                             if (!$attribute) {
                                 continue;
@@ -2344,6 +2345,7 @@ class Product extends Import
                                 $connection->insertOnDuplicate($productImageTable, $data, array_keys($data));
                             }
                         }
+                        $products[] = $assetAttribute['_entity_id'];
                     }
 
                     $files[] = $file;
@@ -2372,6 +2374,8 @@ class Product extends Import
     }
 
     /**
+     * Cache all product images
+     *
      * @param array $productImages
      */
     public function generateImageCache(array $productImages)
