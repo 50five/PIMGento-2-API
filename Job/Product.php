@@ -2231,6 +2231,7 @@ class Product extends Import
         $products = [];
         $files = [];
         $productImages = [];
+        $generateCacheImages = [];
         foreach ($gallery as $asset) {
 
             $assetAttributes = $connection->fetchAll(
@@ -2278,6 +2279,7 @@ class Product extends Import
                                 ->downloadFromNotLocalizableAsset($media['code']);
                         }
                         $this->configHelper->saveMediaFile($name, $binary);
+                        $generateCacheImages[] = $assetAttribute['_entity_id'];
                     }
 
                     /** @var string $file */
@@ -2369,6 +2371,8 @@ class Product extends Import
 
         if($delta == true){
             $this->generateImageCache($productImages);
+        } elseif(!empty($generateCacheImages)) {
+            $this->generateImageCacheByProductId($generateCacheImages);
         }
 
     }
@@ -2380,7 +2384,34 @@ class Product extends Import
      */
     public function generateImageCache(array $productImages)
     {
+        $this->setMessage(
+            __('Generate cached images for %1 product(s)', count($productIds))
+        );
         foreach ($productImages as $productId => $files) {
+            try {
+                /** @var \Magento\Catalog\Model\Product $product */
+                $product = $this->productRepository->getById($productId);
+            } catch (\Magento\Framework\Exception\NoSuchEntityException $e) {
+                continue;
+            }
+
+            /** @var \Magento\Catalog\Model\Product\Image\Cache $imageCache */
+            $imageCache = $this->imageCacheFactory->create();
+            $imageCache->generate($product);
+        }
+    }
+
+    /**
+     * Cache all product images
+     *
+     * @param array $productIds
+     */
+    public function generateImageCacheByProductId(array $productIds)
+    {
+        $this->setMessage(
+            __('Generate cached images for %1 product(s)', count($productIds))
+        );
+        foreach ($productIds as $productId) {
             try {
                 /** @var \Magento\Catalog\Model\Product $product */
                 $product = $this->productRepository->getById($productId);
