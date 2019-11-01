@@ -2385,7 +2385,7 @@ class Product extends Import
     public function generateImageCache(array $productImages)
     {
         $this->setMessage(
-            __('Generate cached images for %1 product(s)', count($productIds))
+            __('Generate cached images for %1 product(s)', count($productImages))
         );
         foreach ($productImages as $productId => $files) {
             try {
