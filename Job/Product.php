@@ -282,8 +282,6 @@ class Product extends Import
 
     /**
      * Create temporary table
-     *
-     * @return void
      */
     public function createTable()
     {
@@ -345,7 +343,8 @@ class Product extends Import
      *
      * @param array $filters
      */
-    public function runData($filters){
+    public function runData($filters)
+    {
         /** @var string|int $paginationSize */
         $paginationSize = $this->configHelper->getPanigationSize();
         /** @var ResourceCursorInterface $productModels */
@@ -406,8 +405,8 @@ class Product extends Import
     /**
      * Create configurable products
      *
-     * @return void
      * @throws LocalizedException
+     * @throws \Zend_Db_Statement_Exception
      */
     public function addRequiredData()
     {
@@ -905,7 +904,7 @@ class Product extends Import
         $productsWebsites = $connection->fetchAll(
             $connection->select()->from('catalog_product_website'));
         $productWebsiteData = [];
-        foreach($productsWebsites as $productsWebsite) {
+        foreach ($productsWebsites as $productsWebsite) {
             $productWebsiteData[$productsWebsite['website_id']][] = $productsWebsite['product_id'];
         }
 
@@ -985,9 +984,9 @@ class Product extends Import
         $taxClasses = $this->configHelper->getProductTaxClasses();
         $storesTaxCheck = $this->storeHelper->getStores();
         $taxData = [];
-        foreach($storesTaxCheck as $storeId => $storeData){
+        foreach ($storesTaxCheck as $storeId => $storeData) {
 
-            if(isset($taxClasses[$storeId]) && $storeId != 0){
+            if (isset($taxClasses[$storeId]) && $storeId != 0) {
                 $taxData[$storeData[0]['website_id']][] = [
                     'storeId' => $storeData[0]['store_id'],
                     'taxId' => $taxClasses[$storeData[0]['store_id']]
@@ -998,7 +997,7 @@ class Product extends Import
         $productsWebsites = $connection->fetchAll(
             $connection->select()->from('catalog_product_website'));
         $productWebsiteData = [];
-        foreach($productsWebsites as $productsWebsite) {
+        foreach ($productsWebsites as $productsWebsite) {
             $productWebsiteData[$productsWebsite['website_id']][] = $productsWebsite['product_id'];
         }
 
@@ -1019,11 +1018,12 @@ class Product extends Import
             if (count($taxData)) {
                 foreach ($taxData as $websiteId => $storesTaxData) {
 
-                    if (isset($productWebsiteData[$websiteId]) && !in_array($product['_entity_id'], $productWebsiteData[$websiteId]) && $websiteId != 0 || !isset($productWebsiteData[$websiteId]) ) {
+                    if (isset($productWebsiteData[$websiteId]) && !in_array($product['_entity_id'],
+                            $productWebsiteData[$websiteId]) && $websiteId != 0 || !isset($productWebsiteData[$websiteId])) {
                         continue;
                     }
 
-                    foreach($storesTaxData as $storeTaxData ){
+                    foreach ($storesTaxData as $storeTaxData) {
                         $dataArray['int'][$i][] = [
                             "attribute_id" => 450,
                             "store_id" => $storeTaxData['storeId'],
@@ -1065,11 +1065,12 @@ class Product extends Import
                 foreach ($pimAttribute as $key => $value) {
                     $key = str_replace("value-", '', $key);
                     foreach ($stores as $storeKey => $storeData) {
-                        foreach($storeData as $store){
+                        foreach ($storeData as $store) {
                             if ($key == $storeKey || $key == "value" && $store['store_id'] == 0) {
                                 if (!empty($value)) {
 
-                                    if (!in_array($product['_entity_id'], $productWebsiteData[$store['website_id']]) && $store['website_id'] != 0) {
+                                    if (!in_array($product['_entity_id'],
+                                            $productWebsiteData[$store['website_id']]) && $store['website_id'] != 0) {
                                         continue;
                                     }
 
@@ -1177,9 +1178,10 @@ class Product extends Import
     }
 
     /**
-     * @param string $attributeCode
-     * @param string $value
-     * @return int|string
+     * @param $attributeCode
+     * @param $value
+     * @return bool|string
+     * @throws \Zend_Db_Statement_Exception
      */
     protected function getOptionValue($attributeCode, $value)
     {
@@ -1202,7 +1204,8 @@ class Product extends Import
     /**
      * @param $code
      * @param $value
-     * @return int|bool
+     * @return bool
+     * @throws \Zend_Db_Statement_Exception
      */
     private function getOptionId($code, $value)
     {
@@ -1226,6 +1229,7 @@ class Product extends Import
     /**
      * @param $value
      * @return bool
+     * @throws \Zend_Db_Statement_Exception
      */
     protected function validateValue($value)
     {
@@ -1445,7 +1449,7 @@ class Product extends Import
         $mappedAttribute = $this->configHelper->getPublishedWebsiteMappingAttribute();
 
         // enable websites based on published website attribute
-        if($isAttributeMapping == 1 && $mappedAttribute !== null){
+        if ($isAttributeMapping == 1 && $mappedAttribute !== null) {
             $attributeSelect = $connection->select()
                 ->from(
                     $tmpAttributeTable
@@ -1453,7 +1457,7 @@ class Product extends Import
                 ->join(
                     $tmpProductTable,
                     $tmpAttributeTable . '._product_id = ' . $tmpProductTable . '._product_id')
-                ->where($tmpAttributeTable . ".attribute_code = '".$mappedAttribute."'");
+                ->where($tmpAttributeTable . ".attribute_code = '" . $mappedAttribute . "'");
             $websiteAttributes = $connection->query($attributeSelect)->fetchAll();
 
             $sites = json_decode($this->configHelper->getPublishedWebsiteMapping(), true);
@@ -1624,9 +1628,6 @@ class Product extends Import
 
     /**
      * Update related, up-sell and cross-sell products
-     *
-     * @return void
-     * @throws \Zend_Db_Exception
      */
     public function setRelated()
     {
@@ -1728,10 +1729,8 @@ class Product extends Import
 
     /**
      * Set Url Rewrite
-     * todo improve speed on creating URL rewrite list speed is lost by using modules to create URL's
-     * @return void
      * @throws LocalizedException
-     * @throws \Zend_Db_Exception
+     * @throws \Magento\Framework\Exception\NoSuchEntityException
      */
     public function setUrlRewrite()
     {
@@ -1751,7 +1750,7 @@ class Product extends Import
         $productsWebsites = $connection->fetchAll(
             $connection->select()->from('catalog_product_website'));
         $productWebsiteData = [];
-        foreach($productsWebsites as $productsWebsite) {
+        foreach ($productsWebsites as $productsWebsite) {
             $productWebsiteData[$productsWebsite['website_id']][] = $productsWebsite['product_id'];
         }
 
@@ -2193,7 +2192,7 @@ class Product extends Import
         $productsWebsites = $connection->fetchAll(
             $connection->select()->from('catalog_product_website'));
         $productWebsiteData = [];
-        foreach($productsWebsites as $productsWebsite) {
+        foreach ($productsWebsites as $productsWebsite) {
             $productWebsiteData[$productsWebsite['website_id']][] = $productsWebsite['product_id'];
         }
 
@@ -2228,10 +2227,13 @@ class Product extends Import
             $this->configHelper->getAttribute(ProductModel::ENTITY, 'thumbnail'),
         ];
 
+        $productCount = count($connection->fetchAll($connection->select('_product_id')->from($tmpProductTable)));
+
         $products = [];
         $files = [];
         $productImages = [];
         $generateCacheImages = [];
+        $i = 0;
         foreach ($gallery as $asset) {
 
             $assetAttributes = $connection->fetchAll(
@@ -2240,16 +2242,16 @@ class Product extends Import
                     ->joinInner(
                         $tmpProductTable,
                         $tmpAttributeTable . '._product_id = ' . $tmpProductTable . '._product_id')
-                    ->where($tmpAttributeTable.'.attribute_code = ?', $asset)
+                    ->where($tmpAttributeTable . '.attribute_code = ?', $asset)
             );
 
-            if(empty($assetAttributes))  {
+            if (empty($assetAttributes)) {
                 $this->setStatus(false);
                 $this->setMessage(__('There are no assets for: ') . $asset);
                 continue;
             }
 
-            foreach($assetAttributes as $assetAttribute){
+            foreach ($assetAttributes as $assetAttribute) {
                 /** @var array $assets */
                 $assets = explode(',', $assetAttribute['value']);
 
@@ -2267,8 +2269,9 @@ class Product extends Import
                         continue;
                     }
 
+                    $ext = pathinfo($reference['code'], PATHINFO_EXTENSION);
                     /** @var string $name */
-                    $name = basename($reference['code']);
+                    $name = md5($media['code']) . '_' . $assetAttribute['_entity_id'] . '.' . $ext;
 
                     if (!$this->configHelper->mediaFileExists($name)) {
                         if ($reference['locale']) {
@@ -2312,19 +2315,19 @@ class Product extends Import
 
                     /** @var array $data */
                     $data = [
-                        'value_id'        => $valueId,
+                        'value_id' => $valueId,
                         'row_id' => $assetAttribute['_entity_id']
                     ];
                     $connection->insertOnDuplicate($galleryEntityTable, $data, array_keys($data));
 
                     /** @var array $data */
                     $data = [
-                        'value_id'        => $valueId,
-                        'store_id'        => 0,
+                        'value_id' => $valueId,
+                        'store_id' => 0,
                         'row_id' => $assetAttribute['_entity_id'],
-                        'label'           => $media['description'],
-                        'position'        => $key,
-                        'disabled'        => 0,
+                        'label' => $media['description'],
+                        'position' => $key,
+                        'disabled' => 0,
                     ];
                     $connection->insertOnDuplicate($galleryValueTable, $data, array_keys($data));
 
@@ -2354,6 +2357,9 @@ class Product extends Import
                     $productImages[$assetAttribute['_entity_id']][] = $file;
                 }
 
+                echo '[',date('H:i:s'),'] ', ($i+1), "/$productCount\r";
+                $i++;
+
                 /** @var \Magento\Framework\DB\Select $cleaner */
                 $cleaner = $connection->select()
                     ->from($galleryTable, ['value_id'])
@@ -2362,16 +2368,18 @@ class Product extends Import
                 $connection->delete(
                     $galleryEntityTable,
                     [
-                        'value_id IN (?)'          => $cleaner,
+                        'value_id IN (?)' => $cleaner,
                         'row_id = ?' => $assetAttribute['_entity_id']
                     ]
                 );
             }
         }
 
-        if($delta == true){
+        echo '[',date('H:i:s'),'] ' . $i . " files processed";
+
+        if ($delta == true) {
             $this->generateImageCache($productImages);
-        } elseif(!empty($generateCacheImages)) {
+        } elseif (!empty($generateCacheImages)) {
             $this->generateImageCacheByProductId($generateCacheImages);
         }
 
@@ -2387,6 +2395,10 @@ class Product extends Import
         $this->setMessage(
             __('Generate cached images for %1 product(s)', count($productImages))
         );
+
+        $productCount = count($productImages);
+
+        $i=0;
         foreach ($productImages as $productId => $files) {
             try {
                 /** @var \Magento\Catalog\Model\Product $product */
@@ -2394,6 +2406,8 @@ class Product extends Import
             } catch (\Magento\Framework\Exception\NoSuchEntityException $e) {
                 continue;
             }
+            echo '[',date('H:i:s'),'] ', ($i+1), "/$productCount\r";
+            $i++;
 
             /** @var \Magento\Catalog\Model\Product\Image\Cache $imageCache */
             $imageCache = $this->imageCacheFactory->create();
@@ -2411,6 +2425,9 @@ class Product extends Import
         $this->setMessage(
             __('Generate cached images for %1 product(s)', count($productIds))
         );
+
+        $productCount = count($productIds);
+        $i=0;
         foreach ($productIds as $productId) {
             try {
                 /** @var \Magento\Catalog\Model\Product $product */
@@ -2418,6 +2435,9 @@ class Product extends Import
             } catch (\Magento\Framework\Exception\NoSuchEntityException $e) {
                 continue;
             }
+
+            echo '[',date('H:i:s'),'] ', ($i+1), "/$productCount\r";
+            $i++;
 
             /** @var \Magento\Catalog\Model\Product\Image\Cache $imageCache */
             $imageCache = $this->imageCacheFactory->create();
