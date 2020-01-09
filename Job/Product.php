@@ -210,6 +210,11 @@ class Product extends Import
     protected $directoryList;
 
     /**
+     * @var ProductModel\Gallery\ReadHandler
+     */
+    protected $galleryReadHandler;
+
+    /**
      * Product constructor.
      * @param OutputHelper $outputHelper
      * @param ManagerInterface $eventManager
@@ -232,6 +237,8 @@ class Product extends Import
      * @param ProductRepositoryInterface $productRepository
      * @param CacheFactory $imageCacheFactory
      * @param DirectoryList $directoryList
+     * @param DirectoryList $directoryList
+     * @param ProductModel\Gallery\ReadHandler $galleryReadHandler
      * @param array $data
      */
     public function __construct(
@@ -256,6 +263,7 @@ class Product extends Import
         ProductRepositoryInterface $productRepository,
         CacheFactory $imageCacheFactory,
         DirectoryList $directoryList,
+        ProductModel\Gallery\ReadHandler $galleryReadHandler,
         array $data = []
     ) {
         parent::__construct($outputHelper, $eventManager, $authenticator, $data);
@@ -278,6 +286,7 @@ class Product extends Import
         $this->productRepository = $productRepository;
         $this->imageCacheFactory = $imageCacheFactory;
         $this->directoryList = $directoryList;
+        $this->galleryReadHandler = $galleryReadHandler;
     }
 
     /**
@@ -285,6 +294,7 @@ class Product extends Import
      */
     public function createTable()
     {
+        return;
         $baseColumns = ["identifier", "family", "parent", "groups", "categories", "enabled"];
         $this->entitiesHelper->createTmpTable($baseColumns, $this->productCode);
         $stores = $this->storeHelper->getAllStores();
@@ -309,6 +319,7 @@ class Product extends Import
      */
     public function insertData()
     {
+        return;
         /** @var array $filters */
         $filters = $this->productFilters->getFilters();
         $this->runData($filters);
@@ -410,6 +421,7 @@ class Product extends Import
      */
     public function addRequiredData()
     {
+        return;
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
@@ -570,6 +582,7 @@ class Product extends Import
      */
     public function createConfigurable()
     {
+        return;
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
@@ -709,6 +722,7 @@ class Product extends Import
      */
     public function matchEntities()
     {
+        return;
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
@@ -748,6 +762,7 @@ class Product extends Import
      */
     public function updateAttributeSetId()
     {
+        return;
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
@@ -792,6 +807,7 @@ class Product extends Import
      */
     public function createEntities()
     {
+        return;
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
@@ -864,6 +880,7 @@ class Product extends Import
      */
     public function setValues()
     {
+        return;
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
@@ -971,6 +988,7 @@ class Product extends Import
      */
     public function setAttributeValues()
     {
+        return;
         $connection = $this->entitiesHelper->getConnection();
         $entityTypeId = $this->configHelper->getEntityTypeId(ProductModel::ENTITY);
         /** @var string $tmpTable */
@@ -1185,6 +1203,7 @@ class Product extends Import
      */
     protected function getOptionValue($attributeCode, $value)
     {
+        return;
         $multiSelectValues = explode(",", $value);
         if (count($multiSelectValues) > 1) {
             $multiSelectIds = [];
@@ -1209,6 +1228,7 @@ class Product extends Import
      */
     private function getOptionId($code, $value)
     {
+        return;
         $connection = $this->entitiesHelper->getConnection();
         $entitiesTable = $this->entitiesHelper->getTable('pimgento_entities');
         $prefixLength = strlen($code . '_') + 1;
@@ -1233,6 +1253,7 @@ class Product extends Import
      */
     protected function validateValue($value)
     {
+        return;
         $connection = $this->entitiesHelper->getConnection();
         $entitiesTable = $this->entitiesHelper->getTable('pimgento_entities');
 
@@ -1257,6 +1278,7 @@ class Product extends Import
      */
     public function linkConfigurable()
     {
+        return;
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
@@ -1439,6 +1461,7 @@ class Product extends Import
      */
     public function setWebsites()
     {
+        return;
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpProductTable */
         $tmpProductTable = $this->entitiesHelper->getTableName($this->productCode);
@@ -1530,6 +1553,7 @@ class Product extends Import
      */
     public function setCategories()
     {
+        return;
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
@@ -1596,6 +1620,7 @@ class Product extends Import
      */
     public function initStock()
     {
+        return;
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
@@ -1631,6 +1656,7 @@ class Product extends Import
      */
     public function setRelated()
     {
+        return;
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
@@ -1734,6 +1760,7 @@ class Product extends Import
      */
     public function setUrlRewrite()
     {
+        return;
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpProductTable */
@@ -2375,12 +2402,10 @@ class Product extends Import
             }
         }
 
-        echo '[',date('H:i:s'),'] ' . $i . " files processed";
-
         if ($delta == true) {
-            $this->generateImageCache($productImages);
-        } elseif (!empty($generateCacheImages)) {
-            $this->generateImageCacheByProductId($generateCacheImages);
+            $this->generateImageCacheByProductId($productImages);
+        } else {
+            $this->generateImageCache($products);
         }
 
     }
@@ -2390,7 +2415,7 @@ class Product extends Import
      *
      * @param array $productImages
      */
-    public function generateImageCache(array $productImages)
+    public function generateImageCacheByProductId(array $productImages)
     {
         $this->setMessage(
             __('Generate cached images for %1 product(s)', count($productImages))
@@ -2406,7 +2431,7 @@ class Product extends Import
             } catch (\Magento\Framework\Exception\NoSuchEntityException $e) {
                 continue;
             }
-            echo '[',date('H:i:s'),'] ', ($i+1), "/$productCount\r";
+            echo '[',date('H:i:s'),'] ', ($i+1), "/$productCount products processed for image cache\r";
             $i++;
 
             /** @var \Magento\Catalog\Model\Product\Image\Cache $imageCache */
@@ -2420,29 +2445,30 @@ class Product extends Import
      *
      * @param array $productIds
      */
-    public function generateImageCacheByProductId(array $productIds)
+    public function generateImageCache($productIds)
     {
-        $this->setMessage(
-            __('Generate cached images for %1 product(s)', count($productIds))
-        );
+
+        $products = $this->productCollection->getItems();
 
         $productCount = count($productIds);
+
         $i=0;
-        foreach ($productIds as $productId) {
-            try {
-                /** @var \Magento\Catalog\Model\Product $product */
-                $product = $this->productRepository->getById($productId);
-            } catch (\Magento\Framework\Exception\NoSuchEntityException $e) {
+        /** @var \Magento\Catalog\Model\Product $product */
+        foreach ($products as $product) {
+            if(!in_array($product->getId(),$productIds)){
                 continue;
             }
 
-            echo '[',date('H:i:s'),'] ', ($i+1), "/$productCount\r";
+            $this->galleryReadHandler->execute($product);
+
+            echo '[',date('H:i:s'),'] ', ($i+1), "/$productCount products processed for image cache\r";
             $i++;
 
             /** @var \Magento\Catalog\Model\Product\Image\Cache $imageCache */
             $imageCache = $this->imageCacheFactory->create();
             $imageCache->generate($product);
         }
+        exit;
     }
 
     /**
@@ -2452,6 +2478,7 @@ class Product extends Import
      */
     public function dropTable()
     {
+        return;
         $this->entitiesHelper->dropTable($this->productCode);
         $this->entitiesHelper->dropTable($this->attributeCode);
     }
