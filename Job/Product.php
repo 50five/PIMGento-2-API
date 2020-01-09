@@ -294,7 +294,6 @@ class Product extends Import
      */
     public function createTable()
     {
-        return;
         $baseColumns = ["identifier", "family", "parent", "groups", "categories", "enabled"];
         $this->entitiesHelper->createTmpTable($baseColumns, $this->productCode);
         $stores = $this->storeHelper->getAllStores();
@@ -319,7 +318,6 @@ class Product extends Import
      */
     public function insertData()
     {
-        return;
         /** @var array $filters */
         $filters = $this->productFilters->getFilters();
         $this->runData($filters);
@@ -421,7 +419,6 @@ class Product extends Import
      */
     public function addRequiredData()
     {
-        return;
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
@@ -582,7 +579,6 @@ class Product extends Import
      */
     public function createConfigurable()
     {
-        return;
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
@@ -722,7 +718,6 @@ class Product extends Import
      */
     public function matchEntities()
     {
-        return;
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
@@ -762,7 +757,6 @@ class Product extends Import
      */
     public function updateAttributeSetId()
     {
-        return;
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
@@ -807,7 +801,6 @@ class Product extends Import
      */
     public function createEntities()
     {
-        return;
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
@@ -880,7 +873,6 @@ class Product extends Import
      */
     public function setValues()
     {
-        return;
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
@@ -988,7 +980,6 @@ class Product extends Import
      */
     public function setAttributeValues()
     {
-        return;
         $connection = $this->entitiesHelper->getConnection();
         $entityTypeId = $this->configHelper->getEntityTypeId(ProductModel::ENTITY);
         /** @var string $tmpTable */
@@ -1203,7 +1194,6 @@ class Product extends Import
      */
     protected function getOptionValue($attributeCode, $value)
     {
-        return;
         $multiSelectValues = explode(",", $value);
         if (count($multiSelectValues) > 1) {
             $multiSelectIds = [];
@@ -1228,7 +1218,6 @@ class Product extends Import
      */
     private function getOptionId($code, $value)
     {
-        return;
         $connection = $this->entitiesHelper->getConnection();
         $entitiesTable = $this->entitiesHelper->getTable('pimgento_entities');
         $prefixLength = strlen($code . '_') + 1;
@@ -1253,7 +1242,6 @@ class Product extends Import
      */
     protected function validateValue($value)
     {
-        return;
         $connection = $this->entitiesHelper->getConnection();
         $entitiesTable = $this->entitiesHelper->getTable('pimgento_entities');
 
@@ -1278,7 +1266,6 @@ class Product extends Import
      */
     public function linkConfigurable()
     {
-        return;
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
@@ -1461,7 +1448,6 @@ class Product extends Import
      */
     public function setWebsites()
     {
-        return;
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpProductTable */
         $tmpProductTable = $this->entitiesHelper->getTableName($this->productCode);
@@ -1553,7 +1539,6 @@ class Product extends Import
      */
     public function setCategories()
     {
-        return;
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
@@ -1620,7 +1605,6 @@ class Product extends Import
      */
     public function initStock()
     {
-        return;
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
@@ -1656,7 +1640,6 @@ class Product extends Import
      */
     public function setRelated()
     {
-        return;
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpTable */
@@ -1760,7 +1743,6 @@ class Product extends Import
      */
     public function setUrlRewrite()
     {
-        return;
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tmpProductTable */
@@ -2468,7 +2450,6 @@ class Product extends Import
             $imageCache = $this->imageCacheFactory->create();
             $imageCache->generate($product);
         }
-        exit;
     }
 
     /**
@@ -2478,7 +2459,6 @@ class Product extends Import
      */
     public function dropTable()
     {
-        return;
         $this->entitiesHelper->dropTable($this->productCode);
         $this->entitiesHelper->dropTable($this->attributeCode);
     }
