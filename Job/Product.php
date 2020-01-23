@@ -60,22 +60,27 @@ class Product extends Import
      * @var string PIM_PRODUCT_STATUS_DISABLED
      */
     const PIM_PRODUCT_STATUS_DISABLED = '0';
+
     /**
      * @var string MAGENTO_PRODUCT_STATUS_DISABLED
      */
     const MAGENTO_PRODUCT_STATUS_DISABLED = '2';
+
     /**
      * @var int CONFIGURABLE_INSERTION_MAX_SIZE
      */
     const CONFIGURABLE_INSERTION_MAX_SIZE = 500;
+
     /**
      * @var array EXCLUDED_COLUMNS
      */
     const EXCLUDED_COLUMNS = ['_links'];
+
     /**
      * @var string ASSOCIATIONS_KEY
      */
     const ASSOCIATIONS_KEY = 'associations';
+
     /**
      * @var string VALUES_KEY
      */
@@ -87,72 +92,84 @@ class Product extends Import
      * @var string $code
      */
     protected $productCode = 'product';
+
     /**
      * This variable contains a string value
      *
      * @var string $code
      */
     protected $attributeCode = 'attribute';
+
     /**
      * This variable contains a string value
      *
      * @var string $name
      */
     protected $name = 'Product';
+
     /**
      * list of allowed type_id that can be imported
      *
      * @var string[]
      */
     protected $allowedTypeId = ['simple', 'virtual'];
+
     /**
      * This variable contains a ProductImportHelper
      *
      * @var ProductImportHelper $entitiesHelper
      */
     protected $entitiesHelper;
+
     /**
      * This variable contains a ConfigHelper
      *
      * @var ConfigHelper $configHelper
      */
     protected $configHelper;
+
     /**
      * This variable contains a ProductFilters
      *
      * @var ProductFilters $productFilters
      */
     protected $productFilters;
+
     /**
      * This variable contains a ScopeConfigInterface
      *
      * @var ScopeConfigInterface $scopeConfig
      */
     protected $scopeConfig;
+
     /**
      * This variable contains a JsonSerializer
      *
      * @var JsonSerializer $serializer
      */
     protected $serializer;
+
     /**
      * This variable contains a ProductModel
      *
      * @var ProductModel $product
      */
     protected $product;
+
     /**
      * This variable contains a ProductUrlPathGenerator
      *
      * @var ProductUrlPathGenerator $productUrlPathGenerator
      */
     protected $productUrlPathGenerator;
+
     /**
      * This variable contains a TypeListInterface
      *
      * @var TypeListInterface $cacheTypeList
      */
     protected $cacheTypeList;
+
     /**
      * This variable contains a StoreHelper
      *
@@ -1755,7 +1772,6 @@ class Product extends Import
             $this->storeHelper->getStores(['lang', 'channel_code']) // en_US-channel
         );
 
-
         $productsWebsites = $connection->fetchAll(
             $connection->select()->from('catalog_product_website'));
         $productWebsiteData = [];
@@ -1815,7 +1831,7 @@ class Product extends Import
                             continue;
                         }
 
-                        $product->setUrlKey($urlKeyData['value-' . $local]);
+                        $product->setUrlKey($product->formatUrlKey($urlKeyData['value-' . $local]));
                         $product->setStoreId($store['store_id']);
                         $urlPath = $this->productUrlPathGenerator->getUrlPath($product);
                         if (!$urlPath) {
@@ -2290,6 +2306,7 @@ class Product extends Import
                             $binary = $this->akeneoClient->getAssetReferenceFileApi()
                                 ->downloadFromNotLocalizableAsset($media['code']);
                         }
+
                         $this->configHelper->saveMediaFile($name, $binary);
                         $generateCacheImages[] = $assetAttribute['_entity_id'];
                     }
@@ -2429,9 +2446,7 @@ class Product extends Import
      */
     public function generateImageCache($productIds)
     {
-
         $products = $this->productCollection->getItems();
-
         $productCount = count($productIds);
 
         $i=0;
