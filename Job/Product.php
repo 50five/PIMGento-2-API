@@ -1004,6 +1004,8 @@ class Product extends Import
         /** @var string $tmpTable */
         $tmpAttributeTable = $this->entitiesHelper->getTableName($this->attributeCode);
 
+        $productModel = $this->product;
+
         $stores = $this->storeHelper->getAllStores();
 
         /** @var array $taxClasses */
@@ -1070,7 +1072,6 @@ class Product extends Import
                 ->where($tmpAttributeTable . "._product_id = ?", $product['_product_id']);
             $attributes = $connection->query($attributeSelect)->fetchAll();
             foreach ($attributes as $pimAttribute) {
-
                 /** @var array|bool $attribute */
                 $attribute = $this->entitiesHelper->getAttribute($pimAttribute['attribute_code'], $entityTypeId);
 
@@ -1107,6 +1108,10 @@ class Product extends Import
                                         if (!$this->validateValue($value)) {
                                             $value = $this->getOptionValue($pimAttribute['attribute_code'], $value);
                                         }
+                                    }
+
+                                    if($pimAttribute['attribute_code'] == 'url_key'){
+                                        $value = $productModel->formatUrlKey($value);
                                     }
 
                                     $dataArray[$backendType][$i][] = [
@@ -1816,7 +1821,6 @@ class Product extends Import
                     ->addFieldToFilter('entity_id', array('in' => $filter));
 
                 foreach ($products as $product) {
-
                     $urlKeyData = $connection->fetchRow(
                         $connection->select()
                             ->from($tmpAttributeTable)
@@ -1826,6 +1830,7 @@ class Product extends Import
                             ->where($tmpAttributeTable . '.attribute_code = "url_key"')
                             ->where($tmpProductTable . '._entity_id =?', $product->getId())
                     );
+
                     if (!empty($urlKeyData['value-' . $local])) {
                         if (!in_array($product->getId(), $productWebsiteData[$store['website_id']])) {
                             continue;
@@ -1854,7 +1859,7 @@ class Product extends Import
                                 ->where('entity_id <> ?', $product->getEntityId())
                         );
                         if ($exists) {
-                            $product->setUrlKey($product->getUrlKey() . '-' . $product->getStoreId());
+                            $product->setUrlKey($product->formatUrlKey($product->getUrlKey()) . '-' . $product->getStoreId());
                             /** @var string $requestPath */
                             $requestPath = $this->productUrlPathGenerator->getUrlPathWithSuffix(
                                 $product,
