@@ -350,10 +350,14 @@
                         <item name="comment" xsi:type="string">Import asset files</item>
                     </item>
                     <item name="18" xsi:type="array">
+                        <item name="method" xsi:type="string">grabVideo</item>
+                        <item name="comment" xsi:type="string">Grab video info from video services</item>
+                    </item>
+                    <item name="19" xsi:type="array">
                         <item name="method" xsi:type="string">dropTable</item>
                         <item name="comment" xsi:type="string">Drop temporary table</item>
                     </item>
-                    <item name="19" xsi:type="array">
+                    <item name="20" xsi:type="array">
                         <item name="method" xsi:type="string">cleanCache</item>
                         <item name="comment" xsi:type="string">Clean cache</item>
                     </item>

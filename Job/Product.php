@@ -31,6 +31,7 @@ use Pimgento\Api\Helper\Store as StoreHelper;
 use Pimgento\Api\Helper\ProductFilters;
 use Pimgento\Api\Helper\Serializer as JsonSerializer;
 use Pimgento\Api\Helper\Import\Product as ProductImportHelper;
+use Pimgento\Api\Helper\VideoProcessor;
 use Zend_Db_Expr as Expr;
 use Zend_Db_Statement_Pdo;
 use Magento\Eav\Api\Data\AttributeInterface;
@@ -232,6 +233,13 @@ class Product extends Import
     protected $galleryReadHandler;
 
     /**
+     * Video processor.
+     *
+     * @var VideoProcessor
+     */
+    protected $videoProcessor;
+
+    /**
      * Product constructor.
      * @param OutputHelper $outputHelper
      * @param ManagerInterface $eventManager
@@ -281,6 +289,7 @@ class Product extends Import
         CacheFactory $imageCacheFactory,
         DirectoryList $directoryList,
         ProductModel\Gallery\ReadHandler $galleryReadHandler,
+        VideoProcessor $videoProcessor,
         array $data = []
     ) {
         parent::__construct($outputHelper, $eventManager, $authenticator, $data);
@@ -304,6 +313,7 @@ class Product extends Import
         $this->imageCacheFactory = $imageCacheFactory;
         $this->directoryList = $directoryList;
         $this->galleryReadHandler = $galleryReadHandler;
+        $this->videoProcessor = $videoProcessor;
     }
 
     /**
@@ -2469,6 +2479,71 @@ class Product extends Import
             /** @var \Magento\Catalog\Model\Product\Image\Cache $imageCache */
             $imageCache = $this->imageCacheFactory->create();
             $imageCache->generate($product);
+        }
+    }
+
+    /**
+     * Grab video by url.
+     */
+    public function grabVideo()
+    {
+        if (!$this->configHelper->isVideoEnabled()) {
+            $this->setStatus(false);
+            $this->setMessage(__('Import video is not enabled'));
+
+            return;
+        }
+
+        $connection = $this->entitiesHelper->getConnection();
+        /** @var string $tmpTable */
+        $tmpProductTable = $this->entitiesHelper->getTableName($this->productCode);
+        /** @var string $tmpTable */
+        $tmpAttributeTable = $this->entitiesHelper->getTableName($this->attributeCode);
+
+        $stores = $this->storeHelper->getAllStores();
+
+        $mappedAttribute = $this->configHelper->getVideoAttribute();
+
+        if ($mappedAttribute !== null) {
+            $attributeSelect = $connection->select()
+                ->from($tmpAttributeTable)
+                ->join($tmpProductTable,
+                    $tmpAttributeTable . '._product_id = ' . $tmpProductTable . '._product_id')
+                ->where($tmpAttributeTable . ".attribute_code = '" . $mappedAttribute . "'");
+            $videoAttributes = $connection->query($attributeSelect)->fetchAll();
+
+            foreach ($videoAttributes as $pimAttribute) {
+                $videoUrls = [];
+                /**
+                 * Grab information about different videos on different stores
+                 */
+                foreach ($pimAttribute as $key => $value) {
+                    $key = str_replace("value-", '', $key);
+                    foreach ($stores as $storeKey => $storeData) {
+                        foreach ($storeData as $store) {
+                            if ($key == $storeKey || $key == "value" && $store['store_id'] == 0) {
+                                if (!empty($value)) {
+                                    $videoUrls[$value][] = $store['store_id'];
+                                }
+                            }
+                        }
+                    }
+                }
+
+                /**
+                 * Save different videos to different stores
+                 */
+                foreach ($videoUrls as $urlVideo => $storesForApply) {
+                    $this->videoProcessor->addVideo(
+                        $this->productRepository->getById($pimAttribute['_entity_id']),
+                        $urlVideo,
+                        $storesForApply,
+                        ['image', 'small_image', 'thumbnail'],
+                        false,
+                        true
+                    );
+                }
+            }
         }
     }
 

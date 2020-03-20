@@ -27,6 +27,11 @@
                 <status>1</status>
                 <delta_updated>15</delta_updated>
             </products_filters>
+            <video>
+                <video_enabled>1</video_enabled>
+                <published_video_attribute>ff_support_video</published_video_attribute>
+                <sort>1</sort>
+            </video>
         </pimgento>
     </default>
 </config>
