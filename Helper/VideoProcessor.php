@@ -33,6 +33,7 @@ use Magento\MediaStorage\Model\ResourceModel\File\Storage\File;
 use Magento\ProductVideo\Controller\Adminhtml\Product\Gallery\RetrieveImage;
 use Magento\Staging\Model\VersionManager;
 use Pimgento\Api\Model\Strategy\GrabVideo;
+use Pimgento\Api\Helper\Config as ConfigHelper;
 
 /**
  * Class VideoProcessor
@@ -98,6 +99,13 @@ class VideoProcessor extends Processor
     protected $protocolValidator;
 
     /**
+     * This variable contains a ConfigHelper
+     *
+     * @var ConfigHelper $configHelper
+     */
+    protected $configHelper;
+
+    /**
      * VideoProcessor constructor.
      *
      * @param ProductAttributeRepositoryInterface $attributeRepository
@@ -105,6 +113,7 @@ class VideoProcessor extends Processor
      * @param Config $mediaConfig
      * @param Filesystem $filesystem
      * @param Gallery $resourceModel
+     * @param \Pimgento\Api\Helper\Config $configHelper
      * @param CreateHandler $createHandler
      * @param GrabVideo $strategyGrabVideo
      * @param Filesystem $fileSystem
@@ -120,6 +129,7 @@ class VideoProcessor extends Processor
         Config $mediaConfig,
         Filesystem $filesystem,
         Gallery $resourceModel,
+        ConfigHelper $configHelper,
         CreateHandler $createHandler,
         GrabVideo $strategyGrabVideo,
         Filesystem $fileSystem,
@@ -139,6 +149,7 @@ class VideoProcessor extends Processor
         $this->createHandler = $createHandler;
         $this->strategyGrabVideo = $strategyGrabVideo;
         $this->fileSystem = $fileSystem;
+        $this->configHelper = $configHelper;
         $this->imageAdapter = $imageAdapterFactory->create();
         $this->curl = $curl;
         $this->fileUtility = $fileUtility;
@@ -297,15 +308,15 @@ class VideoProcessor extends Processor
      * @return $this
      */
     private function validateRemoteFile($remoteFileUrl)
-        {
-            if (!$this->protocolValidator->isValid($remoteFileUrl)) {
-                throw new LocalizedException(
-                    __("Protocol isn't allowed")
-                );
-            }
-
-            return $this;
+    {
+        if (!$this->protocolValidator->isValid($remoteFileUrl)) {
+            throw new LocalizedException(
+                __("Protocol isn't allowed")
+            );
         }
+
+        return $this;
+    }
 
     /**
      * Invalidates files that have script extensions.
@@ -315,12 +326,12 @@ class VideoProcessor extends Processor
      * @return void
      */
     private function validateRemoteFileExtensions($filePath)
-        {
-            $extension = pathinfo($filePath, PATHINFO_EXTENSION);
-            if (!$this->extensionValidator->isValid($extension)) {
-                throw new ValidatorException(__('Disallowed file type.'));
-            }
+    {
+        $extension = pathinfo($filePath, PATHINFO_EXTENSION);
+        if (!$this->extensionValidator->isValid($extension)) {
+            throw new ValidatorException(__('Disallowed file type.'));
         }
+    }
 
     /**
      * Append information about remote image.
@@ -329,18 +340,18 @@ class VideoProcessor extends Processor
      * @return mixed
      */
     protected function appendResultSaveRemoteImage($fileName)
-        {
-            $fileInfo = pathinfo($fileName);
-            $tmpFileName = Uploader::getDispersionPath($fileInfo['basename']) . DIRECTORY_SEPARATOR . $fileInfo['basename'];
-            $result['name'] = $fileInfo['basename'];
-            $result['type'] = $this->imageAdapter->getMimeType();
-            $result['error'] = 0;
-            $result['size'] = filesize($this->appendAbsoluteFileSystemPath($fileName));
-            $result['url'] = $this->mediaConfig->getTmpMediaUrl($tmpFileName);
-            $result['file'] = $tmpFileName;
+    {
+        $fileInfo = pathinfo($fileName);
+        $tmpFileName = Uploader::getDispersionPath($fileInfo['basename']) . DIRECTORY_SEPARATOR . $fileInfo['basename'];
+        $result['name'] = $fileInfo['basename'];
+        $result['type'] = $this->imageAdapter->getMimeType();
+        $result['error'] = 0;
+        $result['size'] = filesize($this->appendAbsoluteFileSystemPath($fileName));
+        $result['url'] = $this->mediaConfig->getTmpMediaUrl($tmpFileName);
+        $result['file'] = $tmpFileName;
 
-            return $result;
-        }
+        return $result;
+    }
 
     /**
      * Trying to get remote image to save it locally
@@ -351,19 +362,19 @@ class VideoProcessor extends Processor
      * @throws LocalizedException
      */
     protected function retrieveRemoteImage($fileUrl, $localFilePath)
-        {
-            $this->curl->setConfig(['header' => false]);
-            $this->curl->write('GET', $fileUrl);
-            $image = $this->curl->read();
+    {
+        $this->curl->setConfig(['header' => false]);
+        $this->curl->write('GET', $fileUrl);
+        $image = $this->curl->read();
 
-            if (empty($image)) {
-                throw new LocalizedException(
-                    __('The preview image information is unavailable. Check your connection and try again.')
-                );
-            }
-
-            $this->fileUtility->saveFile($localFilePath, $image);
+        if (empty($image)) {
+            throw new LocalizedException(
+                __('The preview image information is unavailable. Check your connection and try again.')
+            );
         }
+
+        $this->fileUtility->saveFile($localFilePath, $image);
+    }
 
     /**
      * Append new file name.
@@ -372,13 +383,13 @@ class VideoProcessor extends Processor
      * @return string
      */
     protected function appendNewFileName($localFilePath): string
-        {
-            $destinationFile = $this->appendAbsoluteFileSystemPath($localFilePath);
-            $fileName = Uploader::getNewFileName($destinationFile);
-            $fileInfo = pathinfo($localFilePath);
+    {
+        $destinationFile = $this->appendAbsoluteFileSystemPath($localFilePath);
+        $fileName = Uploader::getNewFileName($destinationFile);
+        $fileInfo = pathinfo($localFilePath);
 
-            return $fileInfo['dirname'] . DIRECTORY_SEPARATOR . $fileName;
-        }
+        return $fileInfo['dirname'] . DIRECTORY_SEPARATOR . $fileName;
+    }
 
     /**
      * Append absolute file path.
@@ -387,11 +398,11 @@ class VideoProcessor extends Processor
      * @return string
      */
     protected function appendAbsoluteFileSystemPath($localTmpFile): string
-        {
-            /** @var Read $mediaDirectory */
-            $mediaDirectory = $this->fileSystem->getDirectoryRead(DirectoryList::MEDIA);
-            $pathToSave = $mediaDirectory->getAbsolutePath();
+    {
+        /** @var Read $mediaDirectory */
+        $mediaDirectory = $this->fileSystem->getDirectoryRead(DirectoryList::MEDIA);
+        $pathToSave = $mediaDirectory->getAbsolutePath();
 
-            return $pathToSave . $localTmpFile;
-        }
+        return $pathToSave . $localTmpFile;
+    }
 }
