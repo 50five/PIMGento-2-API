@@ -64,6 +64,9 @@ class Config extends AbstractHelper
     const AKENEO_API_IS_ATTRIBUTE_MAPPING = 'pimgento/akeneo_api/is_attribute_mapping';
     const AKENEO_API_PUBLISHED_WEBSITE_MAPPING_ATTRIBUTE = 'pimgento/akeneo_api/published_website_attribute';
     const AKENEO_API_PUBLISHED_WEBSITE_MAPPING = 'pimgento/akeneo_api/published_website';
+    const AKENEO_API_VIDEO_ENABLED = 'pimgento/video/video_enabled';
+    const AKENEO_API_VIDEO_ATTRIBUTE_CODE = 'pimgento/video/published_video_attribute';
+    const AKENEO_API_VIDEO_SORT = 'pimgento/video/sort';
 
     /**
      * @var int PAGINATION_SIZE_DEFAULT_VALUE
@@ -692,5 +695,35 @@ class Config extends AbstractHelper
     public function getPublishedWebsiteMapping()
     {
         return $this->scopeConfig->getValue(self::AKENEO_API_PUBLISHED_WEBSITE_MAPPING);
+    }
+
+    /**
+     * Get video attribute.
+     *
+     * @return string
+     */
+    public function isVideoEnabled()
+    {
+        return $this->scopeConfig->getValue(self::AKENEO_API_VIDEO_ENABLED);
+    }
+    
+    /**
+     * Check if video enable.
+     *
+     * @return string
+     */
+    public function getVideoAttribute()
+    {
+        return $this->scopeConfig->getValue(self::AKENEO_API_VIDEO_ATTRIBUTE_CODE);
+    }
+    
+    /**
+     * Check if video sort enable.
+     *
+     * @return string
+     */
+    public function isEnabledSortVideo()
+    {
+        return $this->scopeConfig->getValue(self::AKENEO_API_VIDEO_SORT);
     }
 }

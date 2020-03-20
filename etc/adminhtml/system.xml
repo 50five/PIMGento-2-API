@@ -262,6 +262,25 @@ For example :<br/>
                     </depends>
                 </field>
             </group>
+            <group id="video" translate="label" type="text" sortOrder="60" showInDefault="1" showInWebsite="0" showInStore="0">
+                <label>Akeneo Video sync</label>
+                <field id="video_enabled" translate="label" type="select" sortOrder="40" showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Import Video</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
+                <field id="published_video_attribute" translate="label comment" type="text" sortOrder="50" showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Video attribute code</label>
+                    <depends>
+                        <field id="pimgento/video/video_enabled">1</field>
+                    </depends>
+                    <comment>After sync this attribute into magento, will be run new job for add video into media asset</comment>
+                </field>
+                <field id="sort" translate="label" type="select" sortOrder="60" showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Sort Video in gallery</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <comment>If set to YES then video will be in first positions</comment>
+                </field>
+            </group>
         </section>
     </system>
 </config>
