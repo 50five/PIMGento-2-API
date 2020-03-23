@@ -2367,7 +2367,7 @@ class Product extends Import
                         'store_id' => 0,
                         'row_id' => $assetAttribute['_entity_id'],
                         'label' => $media['description'],
-                        'position' => $key + 1,
+                        'position' => $key,
                         'disabled' => 0,
                     ];
                     $connection->insertOnDuplicate($galleryValueTable, $data, array_keys($data));
@@ -2389,17 +2389,6 @@ class Product extends Import
                                     'value'           => $file
                                 ];
                                 $connection->insertOnDuplicate($productImageTable, $data, array_keys($data));
-
-                                /** If some image set into specific store then save data and increase position */
-                                $data = [
-                                    'value_id' => $valueId,
-                                    'store_id' => $store[0]['store_id'],
-                                    'row_id' => $assetAttribute['_entity_id'],
-                                    'label' => $media['description'],
-                                    'position' => $key + 1,
-                                    'disabled' => 0,
-                                ];
-                                $connection->insertOnDuplicate($galleryValueTable, $data, array_keys($data));
                             }
                         }
                         $products[] = $assetAttribute['_entity_id'];
