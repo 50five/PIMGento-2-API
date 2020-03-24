@@ -2292,6 +2292,7 @@ class Product extends Import
             }
 
             foreach ($assetAttributes as $assetAttribute) {
+
                 /** @var array $assets */
                 $assets = explode(',', $assetAttribute['value']);
 
@@ -2367,7 +2368,7 @@ class Product extends Import
                         'store_id' => 0,
                         'row_id' => $assetAttribute['_entity_id'],
                         'label' => $media['description'],
-                        'position' => $key + 1,
+                        'position' => $key,
                         'disabled' => 0,
                     ];
                     $connection->insertOnDuplicate($galleryValueTable, $data, array_keys($data));
@@ -2381,6 +2382,7 @@ class Product extends Import
                                 if (!in_array($assetAttribute['_entity_id'], $productWebsiteData[$store[0]['website_id']]) && $store[0]['website_id'] != 0) {
                                     continue;
                                 }
+
                                 /** @var array $data */
                                 $data = [
                                     'attribute_id'    => $attribute->getId(),
@@ -2389,17 +2391,6 @@ class Product extends Import
                                     'value'           => $file
                                 ];
                                 $connection->insertOnDuplicate($productImageTable, $data, array_keys($data));
-
-                                /** If some image set into specific store then save data and increase position */
-                                $data = [
-                                    'value_id' => $valueId,
-                                    'store_id' => $store[0]['store_id'],
-                                    'row_id' => $assetAttribute['_entity_id'],
-                                    'label' => $media['description'],
-                                    'position' => $key + 1,
-                                    'disabled' => 0,
-                                ];
-                                $connection->insertOnDuplicate($galleryValueTable, $data, array_keys($data));
                             }
                         }
                         $products[] = $assetAttribute['_entity_id'];
@@ -2510,6 +2501,10 @@ class Product extends Import
         $tmpProductTable = $this->entitiesHelper->getTableName($this->productCode);
         /** @var string $tmpTable */
         $tmpAttributeTable = $this->entitiesHelper->getTableName($this->attributeCode);
+        /** @var string $galleryValueTable */
+        $galleryValueTable = $this->entitiesHelper->getTable('catalog_product_entity_media_gallery_value');
+        /** @var string $galleryEntityTable */
+        $galleryEntityTable = $this->entitiesHelper->getTable('catalog_product_entity_media_gallery_value_to_entity');
 
         $stores = $this->storeHelper->getAllStores();
 
@@ -2524,6 +2519,27 @@ class Product extends Import
             $videoAttributes = $connection->query($attributeSelect)->fetchAll();
 
             foreach ($videoAttributes as $pimAttribute) {
+                $product = $this->productRepository->getById($pimAttribute['_entity_id']);
+
+                $mediaGalleryData = $connection->fetchAll(
+                    $connection->select()
+                        ->from($galleryEntityTable)
+                        ->joinLeft(
+                            $galleryValueTable,
+                            $galleryValueTable . '.value_id = ' . $galleryEntityTable . '.value_id')
+                        ->where($galleryValueTable . '.row_id = ?', $pimAttribute['_entity_id'])
+                );
+
+                foreach ($mediaGalleryData as $media) {
+                    if (isset($media['position'])) {
+                        $connection->update(
+                            $galleryValueTable,
+                            ['position' => (int)$media['position'] + 1],
+                            ['value_id = ?' => $media['value_id']]
+                        );
+                    }
+                }
+
                 $videoUrls = [];
                 /**
                  * Grab information about different videos on different stores
@@ -2546,7 +2562,7 @@ class Product extends Import
                  */
                 foreach ($videoUrls as $urlVideo => $storesForApply) {
                     $this->videoProcessor->addVideo(
-                        $this->productRepository->getById($pimAttribute['_entity_id']),
+                        $product,
                         $urlVideo,
                         $storesForApply,
                         ['image', 'small_image', 'thumbnail'],
