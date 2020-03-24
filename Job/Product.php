@@ -2292,7 +2292,6 @@ class Product extends Import
             }
 
             foreach ($assetAttributes as $assetAttribute) {
-
                 /** @var array $assets */
                 $assets = explode(',', $assetAttribute['value']);
 
@@ -2382,7 +2381,6 @@ class Product extends Import
                                 if (!in_array($assetAttribute['_entity_id'], $productWebsiteData[$store[0]['website_id']]) && $store[0]['website_id'] != 0) {
                                     continue;
                                 }
-
                                 /** @var array $data */
                                 $data = [
                                     'attribute_id'    => $attribute->getId(),
@@ -2505,6 +2503,8 @@ class Product extends Import
         $galleryValueTable = $this->entitiesHelper->getTable('catalog_product_entity_media_gallery_value');
         /** @var string $galleryEntityTable */
         $galleryEntityTable = $this->entitiesHelper->getTable('catalog_product_entity_media_gallery_value_to_entity');
+        /** @var string $galleryTable */
+        $galleryTable = $this->entitiesHelper->getTable('catalog_product_entity_media_gallery');
 
         $stores = $this->storeHelper->getAllStores();
 
@@ -2520,25 +2520,6 @@ class Product extends Import
 
             foreach ($videoAttributes as $pimAttribute) {
                 $product = $this->productRepository->getById($pimAttribute['_entity_id']);
-
-                $mediaGalleryData = $connection->fetchAll(
-                    $connection->select()
-                        ->from($galleryEntityTable)
-                        ->joinLeft(
-                            $galleryValueTable,
-                            $galleryValueTable . '.value_id = ' . $galleryEntityTable . '.value_id')
-                        ->where($galleryValueTable . '.row_id = ?', $pimAttribute['_entity_id'])
-                );
-
-                foreach ($mediaGalleryData as $media) {
-                    if (isset($media['position'])) {
-                        $connection->update(
-                            $galleryValueTable,
-                            ['position' => (int)$media['position'] + 1],
-                            ['value_id = ?' => $media['value_id']]
-                        );
-                    }
-                }
 
                 $videoUrls = [];
                 /**
@@ -2569,6 +2550,30 @@ class Product extends Import
                         false,
                         true
                     );
+                }
+
+                $mediaGalleryData = $connection->fetchAll(
+                    $connection->select()
+                        ->from($galleryEntityTable)
+                        ->joinLeft(
+                            $galleryValueTable,
+                            $galleryValueTable . '.value_id = ' . $galleryEntityTable . '.value_id')
+                        ->joinLeft(
+                            $galleryTable,
+                            $galleryTable . '.value_id = ' . $galleryEntityTable . '.value_id')
+                        ->where($galleryValueTable . '.row_id = ?', $pimAttribute['_entity_id'])
+                        ->where($galleryTable . '.media_type = ?', 'image')
+                );
+
+                foreach ($mediaGalleryData as $media) {
+                    if (isset($media['position'])) {
+                        var_dump($media['value_id']);
+                        $connection->update(
+                            $galleryValueTable,
+                            ['position' => (int)$media['position'] + 1],
+                            ['value_id = ?' => $media['value_id']]
+                        );
+                    }
                 }
             }
         }
