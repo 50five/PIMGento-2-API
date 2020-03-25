@@ -2567,7 +2567,6 @@ class Product extends Import
 
                 foreach ($mediaGalleryData as $media) {
                     if (isset($media['position'])) {
-                        var_dump($media['value_id']);
                         $connection->update(
                             $galleryValueTable,
                             ['position' => (int)$media['position'] + 1],
