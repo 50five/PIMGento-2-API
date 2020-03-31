@@ -17,7 +17,7 @@ interface GrabVideoInterface
     /**#@+
      * Constants defined for host video.
      */
-    const HOST_YOUTUBE = "youtube";
+    const HOST_YOUTUBE = "youtu";
     const HOST_VIMEO = "vimeo";
     /**#@-*/
 
@@ -33,7 +33,7 @@ interface GrabVideoInterface
      * Get video id from url.
      *
      * @param $url
-     * @return mixed|string
+     * @return bool|string
      */
-    public function getVideoID($url): string;
+    public function getVideoID($url);
 }

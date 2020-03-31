@@ -54,7 +54,6 @@ class GrabVideo
      *
      * @param string $videoUrl
      * @return array
-     * @throws \Exception
      */
     public function getGrabMethod($videoUrl)
     {
@@ -64,8 +63,7 @@ class GrabVideo
             return $this->youtubeModel->getVideoData($videoUrl);
         } else if (strstr($host, GrabVideoInterface::HOST_VIMEO)) {
             return $this->vimeoModel->getVideoData($videoUrl);
-        } else {
-            throw new \Exception("Unknown Grab Method");
         }
+        return [];
     }
 }

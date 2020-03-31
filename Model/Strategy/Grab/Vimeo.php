@@ -33,7 +33,12 @@ class Vimeo implements GrabVideoInterface
      */
     public function getVideoData($urlVideo): array
     {
-        $api_url = self::API_VIMEO_URL . $this->getVideoID($urlVideo) . '.json';
+        $videoId = $this->getVideoID($urlVideo);
+        if($videoId === false){
+            return [];
+        }
+
+        $api_url = self::API_VIMEO_URL . $videoId . '.json';
 
         $data = json_decode(file_get_contents($api_url));
         if (count($data) === 0) {
@@ -43,7 +48,7 @@ class Vimeo implements GrabVideoInterface
         $snippet = $data[0];
 
         $videoData = [
-            'video_id' => $this->getVideoID($urlVideo),
+            'video_id' => $videoId,
             'video_title' => $snippet->title,
             'video_description' => $snippet->description,
             'thumbnail' => $snippet->thumbnail_medium,
@@ -60,9 +65,12 @@ class Vimeo implements GrabVideoInterface
      * Get video id from url.
      *
      * @param $url
-     * @return mixed|string
+     * @return bool|string
      */
-    public function getVideoID($url): string {
-        return substr(parse_url($url, PHP_URL_PATH), 1);
+    public function getVideoID($url) {
+        if(preg_match("/(https?:\/\/)?(www\.)?(player\.)?vimeo\.com\/([a-z]*\/)*([0-9]{6,11})[?]?.*/", $url, $result)) {
+            return $result[5];
+        }
+        return false;
     }
 }

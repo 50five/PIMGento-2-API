@@ -51,6 +51,11 @@ class Youtube implements GrabVideoInterface
      */
     public function getVideoData($urlVideo): array
     {
+        $videoId = $this->getVideoID($urlVideo);
+        if($videoId === false){
+            return [];
+        }
+
         $api_url = self::API_YOUTUBE_URL . '&id=' . $this->getVideoID($urlVideo) . '&key=' . $this->getYouTubeApiKey();
 
         $data = json_decode(file_get_contents($api_url));
@@ -78,16 +83,13 @@ class Youtube implements GrabVideoInterface
      * Get video id from url.
      *
      * @param $url
-     * @return mixed|string
+     * @return bool|string
      */
-    public function getVideoID($url): string {
-        $queryString = parse_url($url, PHP_URL_QUERY);
-
-        parse_str($queryString, $params);
-        if (isset($params['v']) && strlen($params['v']) > 0) {
-            return $params['v'];
+    public function getVideoID($url) {
+        if(preg_match("/^(?:http(?:s)?:\/\/)?(?:www\.)?(?:m\.)?(?:youtu\.be\/|youtube\.com\/(?:(?:watch)?\?(?:.*&)?v(?:i)?=|(?:embed|v|vi|user)\/))([^\?&\"'>]+)/", $url, $result)){
+            return $result[1];
         } else {
-            return "";
+            return false;
         }
     }
 
