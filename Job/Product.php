@@ -1599,6 +1599,10 @@ class Product extends Import
                 []
             );
 
+        if($connection->isTableExists('visual_merchandiser_rule')){
+            $select->where("c.entity_id NOT IN (SELECT `v`.`category_id` FROM `visual_merchandiser_rule` AS `v` where `v`.`conditions_serialized` IS NOT NULL AND `v`.`is_active` = 1)");
+        }
+
         $connection->query(
             $connection->insertFromSelect(
                 $select,
@@ -1623,6 +1627,10 @@ class Product extends Import
                 'c.entity_id = e.entity_id',
                 []
             );
+
+        if($connection->isTableExists('visual_merchandiser_rule')){
+            $selectToDelete->where("c.entity_id NOT IN (SELECT `v`.`category_id` FROM `visual_merchandiser_rule` AS `v` where `v`.`conditions_serialized` IS NOT NULL AND `v`.`is_active` = 1)");
+        }
 
         $connection->delete(
             $this->entitiesHelper->getTable('catalog_category_product'),
